@@ -83,3 +83,54 @@ Evidently) and Phase 3 (Streamlit demo, HF Spaces, Medium article).
 three phases each half-finished. Kubernetes manifests nobody ran, or an
 Airflow DAG never actually triggered, undermine credibility more than not
 having them at all.
+
+---
+
+## ADR-008: Direct HTTP download instead of the `soccerdata` library
+
+**Decision:** `src/data/ingest.py` fetches CSVs directly via `requests`
+(`https://www.football-data.co.uk/mmz4281/{season}/{league}.csv`) instead of
+using the `soccerdata` library originally proposed in the plan.
+
+**Why:** `soccerdata`'s `MatchHistory` reader uses a custom TLS client
+(`tls_requests`) to mimic browser fingerprints. That client received HTTP 503
+from football-data.co.uk in testing, while a plain `curl`/`requests` GET on
+the same URL returned 200 with valid data. Beyond fixing the immediate
+failure, dropping `soccerdata` removes a large, unnecessary dependency chain
+(`selenium`, `seleniumbase`, `tls_requests`) for what is just a public,
+unauthenticated CSV download — simpler and more reproducible.
+
+**Note:** football-data.co.uk does not return HTTP errors for malformed
+season/league codes in all cases (observed: an invalid season code returned
+200 with unrelated historical data instead of 404). `ingest.py` therefore only
+fetches and saves raw bytes; schema/date-range sanity checking happens in
+`src/data/validate.py`, not during ingestion.
+
+**Note:** Column schema differs across seasons (71 columns in 2010/11 vs. 132
+in 2025/26 — more betting markets were added over time). Feature engineering
+must only rely on columns present across all seasons in scope.
+
+---
+
+## ADR-009: No recalibration applied in this iteration (verified, not assumed)
+
+**Decision:** None of the four Phase 1 models (bookmaker baseline, logistic
+regression, random forest, XGBoost) use class reweighting, and none have
+post-hoc recalibration (Platt scaling / isotonic regression) applied to their
+output probabilities.
+
+**Why:** Per ADR-004, recalibration is only needed when a model is trained
+with reweighted classes. `src/models/calibration.py` was still built and
+exercised, not left as an unused stub, so this is a measured finding rather
+than an assumption: fitting isotonic/Platt calibrators on the first half of
+Random Forest's out-of-fold seasons (2015–2019) and evaluating on the second
+half (2020–2025) shows isotonic recalibration changes log-loss by only
+-0.0002 (noise-level) and Platt scaling makes it *worse* by +0.0044. The
+reliability diagrams for all three outcome classes (H/D/A) already show
+predicted probabilities tracking actual frequencies closely without any
+reweighting — see `vault/Evaluation-Log.md` Run 001.
+
+**How to apply:** If a future iteration reweights classes (e.g. to chase
+draw recall), rerun `src/models/calibration.py`'s benefit check before
+deciding whether to ship the recalibrated probabilities — don't assume it
+helps just because reweighting was used.
