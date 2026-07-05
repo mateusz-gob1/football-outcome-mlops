@@ -14,6 +14,10 @@ services:
         "--default-artifact-root", "./mlruns",
         "--host", "0.0.0.0",
         "--port", "5000",
+        # Without this, MLflow's DNS-rebinding protection rejects requests whose
+        # Host header is the Compose service name ("mlflow") instead of an IP or
+        # "localhost" - which is exactly how the api container reaches it.
+        "--allowed-hosts", "mlflow,localhost",
       ]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000')"]

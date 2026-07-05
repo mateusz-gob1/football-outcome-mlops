@@ -181,20 +181,37 @@ retry, `api` would very likely crash on boot in a real `docker compose up`.
 Fixed by adding a `healthcheck` to the `mlflow` service and switching `api`'s
 dependency to `condition: service_healthy`.
 
-**Known limitation, with a concrete plan to close it:** the Docker setup is
-still unverified by an actual build - neither this machine nor the remote
-sandbox used to attempt verification has Docker installed. Rather than chase
-another environment, real end-to-end verification is deferred to Phase 3:
-deploying the Streamlit demo to Hugging Face Spaces via its Docker SDK will
-have HF's own build servers run a real `docker build` against this
-Dockerfile. That becomes the actual proof point, not a hypothetical one. If
-it fails, the most likely failure points are: (1) the healthcheck command
-itself (assumes `python` is on PATH inside the container, which it is per the
-Dockerfile's base image, but the specific urllib call was never executed),
-(2) `sqlite:///mlflow.db` path resolution differing between the `mlflow` and
-`api` containers' working directories.
+**Update (superseded by ADR-014):** GitHub Actions CI now runs a real
+`docker compose build` + `up` + curl smoke test on every push (see ADR-014) -
+this is no longer unverified, and it caught a real bug on the first run.
 
 ---
+
+## ADR-014: Real Docker verification via CI caught a genuine startup bug
+
+**Decision:** The `docker` job in `.github/workflows/ci.yml` is the actual
+verification ADR-011 deferred to "someday" - it builds both images, runs
+`docker compose up -d`, polls `/health`, and curls `/predict`, all on
+GitHub's own runners (which have Docker; this dev machine doesn't).
+
+**What it found on the very first real run:** the `api` container crashed on
+startup with `mlflow.exceptions.MlflowException: ... 403 ... 'Invalid Host
+header - possible DNS rebinding attack detected'`. MLflow's server validates
+the incoming `Host` header against an allowlist (default: `localhost` and
+private IP ranges) to block DNS-rebinding attacks. The `api` container
+reaches MLflow via the Docker Compose service name (`http://mlflow:5000`),
+so the `Host` header is literally the string `mlflow` - not `localhost`, not
+an IP address - and got rejected.
+
+**Fix:** added `--allowed-hosts mlflow,localhost` to the `mlflow` service's
+startup command in `docker-compose.yml`.
+
+**Why this matters beyond the one bug:** this is exactly the kind of failure
+static review (ADR-011's earlier pass) could not have caught - it only shows
+up when the two containers actually try to talk to each other over the
+Compose network. It's the concrete argument for why "I wrote a Dockerfile"
+and "CI actually builds and runs it on every push" are different claims, and
+why the second one is worth having.
 
 ## ADR-012: Multi-bookmaker baseline (Bet365 + Bet&Win), with fallback
 
