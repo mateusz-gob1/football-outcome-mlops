@@ -16,8 +16,11 @@ services:
         "--port", "5000",
         # Without this, MLflow's DNS-rebinding protection rejects requests whose
         # Host header is the Compose service name ("mlflow") instead of an IP or
-        # "localhost" - which is exactly how the api container reaches it.
-        "--allowed-hosts", "mlflow,localhost",
+        # "localhost" - which is exactly how the api container reaches it. The
+        # check matches the Host header verbatim, port included, so both the
+        # bare and ":5000"-qualified forms are needed (our own healthcheck below
+        # sends "localhost:5000" and was rejected until this was added too).
+        "--allowed-hosts", "mlflow,mlflow:5000,localhost,localhost:5000",
       ]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000')"]

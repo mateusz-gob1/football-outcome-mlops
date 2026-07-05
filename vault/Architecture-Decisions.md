@@ -203,8 +203,20 @@ reaches MLflow via the Docker Compose service name (`http://mlflow:5000`),
 so the `Host` header is literally the string `mlflow` - not `localhost`, not
 an IP address - and got rejected.
 
-**Fix:** added `--allowed-hosts mlflow,localhost` to the `mlflow` service's
-startup command in `docker-compose.yml`.
+**Fix (round 1):** added `--allowed-hosts mlflow,localhost` to the `mlflow`
+service's startup command in `docker-compose.yml`.
+
+**Fix (round 2 - the first fix wasn't enough):** the next CI run still
+failed, earlier this time - `docker compose up -d` itself errored with
+"container football-outcome-mlops-mlflow-1 is unhealthy". The mlflow
+container's own logs showed why: `Rejected request with invalid Host header:
+localhost:5000`. The allowlist match is against the Host header *verbatim,
+including the port* - `mlflow`/`localhost` (no port) didn't cover the
+container's own healthcheck, which calls `http://localhost:5000` and sends
+`Host: localhost:5000`. Updated to
+`--allowed-hosts mlflow,mlflow:5000,localhost,localhost:5000` to cover both
+the bare and port-qualified forms used by the healthcheck and the `api`
+container's real traffic.
 
 **Why this matters beyond the one bug:** this is exactly the kind of failure
 static review (ADR-011's earlier pass) could not have caught - it only shows
