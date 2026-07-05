@@ -22,12 +22,26 @@ PROCESSED_DATA_PATH = PROJECT_ROOT / "data" / "processed" / "matches_validated.c
 FOLD_RESULTS_DIR = PROJECT_ROOT / "data" / "processed" / "fold_results"
 
 FEATURE_COLUMNS = [
-    "home_form_pts_5", "home_form_pts_10", "home_goals_scored_5", "home_goals_conceded_5",
-    "home_streak_before", "home_rest_days", "home_table_position",
-    "away_form_pts_5", "away_form_pts_10", "away_goals_scored_5", "away_goals_conceded_5",
-    "away_streak_before", "away_rest_days", "away_table_position",
-    "h2h_home_pts", "h2h_away_pts", "h2h_matches_count",
-    "odds_implied_home_prob", "odds_implied_draw_prob", "odds_implied_away_prob",
+    "home_form_pts_5",
+    "home_form_pts_10",
+    "home_goals_scored_5",
+    "home_goals_conceded_5",
+    "home_streak_before",
+    "home_rest_days",
+    "home_table_position",
+    "away_form_pts_5",
+    "away_form_pts_10",
+    "away_goals_scored_5",
+    "away_goals_conceded_5",
+    "away_streak_before",
+    "away_rest_days",
+    "away_table_position",
+    "h2h_home_pts",
+    "h2h_away_pts",
+    "h2h_matches_count",
+    "odds_implied_home_prob",
+    "odds_implied_draw_prob",
+    "odds_implied_away_prob",
 ]
 TARGET_COLUMN = "FTR"
 MIN_TRAIN_SEASONS = 5
@@ -42,7 +56,13 @@ class BookmakerBaseline:
         return self
 
     def predict_proba(self, X):
-        return X[["odds_implied_away_prob", "odds_implied_draw_prob", "odds_implied_home_prob"]].to_numpy()
+        return X[
+            [
+                "odds_implied_away_prob",
+                "odds_implied_draw_prob",
+                "odds_implied_home_prob",
+            ]
+        ].to_numpy()
 
 
 class XGBoostWrapper:
@@ -104,7 +124,9 @@ MODEL_SPECS = {
     "random_forest": {
         "factory": make_random_forest,
         "param_grid": [
-            {"n_estimators": n, "max_depth": d} for n in [200, 400] for d in [6, 12, None]
+            {"n_estimators": n, "max_depth": d}
+            for n in [200, 400]
+            for d in [6, 12, None]
         ],
     },
     "xgboost": {
@@ -151,7 +173,9 @@ def prepare_dataset() -> pd.DataFrame:
     return features
 
 
-def train_and_log(model_name: str, data: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+def train_and_log(
+    model_name: str, data: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     spec = MODEL_SPECS[model_name]
     fold_results, oof_predictions = walk_forward_validate(
         data,
@@ -199,5 +223,7 @@ def train_all() -> dict[str, tuple[pd.DataFrame, pd.DataFrame]]:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
     train_all()

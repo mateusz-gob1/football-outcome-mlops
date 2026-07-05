@@ -19,7 +19,9 @@ ModelFactory = Callable[[dict], Any]
 CLASSES = ["A", "D", "H"]  # alphabetical, matching sklearn's default label ordering
 
 
-def season_folds(seasons: list[int], min_train_seasons: int) -> list[tuple[list[int], int]]:
+def season_folds(
+    seasons: list[int], min_train_seasons: int
+) -> list[tuple[list[int], int]]:
     """Expanding walk-forward folds: (train_seasons, test_season) for each step."""
     seasons = sorted(seasons)
     return [(seasons[:i], seasons[i]) for i in range(min_train_seasons, len(seasons))]
@@ -80,7 +82,9 @@ def walk_forward_validate(
     oof_frames = []
     for train_seasons, test_season in folds:
         best_params = (
-            inner_tune(data, train_seasons, feature_cols, target_col, model_factory, param_grid)
+            inner_tune(
+                data, train_seasons, feature_cols, target_col, model_factory, param_grid
+            )
             if param_grid
             else {}
         )

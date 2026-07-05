@@ -56,7 +56,9 @@ def test_inner_tuning_never_fits_on_the_outer_test_season():
     assert (oof["test_season"] == 2013).all()
 
     fit_seasons_seen = set().union(*(seasons for kind, seasons in log if kind == "fit"))
-    assert 2013 not in fit_seasons_seen, "the outer test season leaked into a .fit() call"
+    assert (
+        2013 not in fit_seasons_seen
+    ), "the outer test season leaked into a .fit() call"
 
     # The test season must appear in exactly one predict_proba call: the final evaluation.
     predict_calls_with_test_season = [

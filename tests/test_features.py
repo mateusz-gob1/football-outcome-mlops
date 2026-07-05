@@ -1,5 +1,4 @@
 import pandas as pd
-import pytest
 
 from src.features.build_features import (
     MIN_HISTORY,
@@ -12,7 +11,15 @@ from src.features.build_features import (
 def _matches(rows: list[dict]) -> pd.DataFrame:
     df = pd.DataFrame(rows)
     df["Date"] = pd.to_datetime(df["Date"])
-    for col, default in [("B365H", 2.5), ("B365D", 3.2), ("B365A", 2.9)]:
+    defaults = [
+        ("B365H", 2.5),
+        ("B365D", 3.2),
+        ("B365A", 2.9),
+        ("BWH", 2.5),
+        ("BWD", 3.2),
+        ("BWA", 2.9),
+    ]
+    for col, default in defaults:
         if col not in df.columns:
             df[col] = default
     return df
@@ -21,13 +28,62 @@ def _matches(rows: list[dict]) -> pd.DataFrame:
 def _two_team_season() -> pd.DataFrame:
     """A and B play each other 7 times, alternating venue, on weekly dates."""
     rows = [
-        {"Date": "2020-08-01", "season_start_year": 2020, "HomeTeam": "A", "AwayTeam": "B", "FTHG": 2, "FTAG": 0},
-        {"Date": "2020-08-08", "season_start_year": 2020, "HomeTeam": "B", "AwayTeam": "A", "FTHG": 1, "FTAG": 1},
-        {"Date": "2020-08-15", "season_start_year": 2020, "HomeTeam": "A", "AwayTeam": "B", "FTHG": 0, "FTAG": 1},
-        {"Date": "2020-08-22", "season_start_year": 2020, "HomeTeam": "B", "AwayTeam": "A", "FTHG": 2, "FTAG": 2},
-        {"Date": "2020-08-29", "season_start_year": 2020, "HomeTeam": "A", "AwayTeam": "B", "FTHG": 3, "FTAG": 1},
-        {"Date": "2020-09-05", "season_start_year": 2020, "HomeTeam": "B", "AwayTeam": "A", "FTHG": 0, "FTAG": 0},
-        {"Date": "2020-09-12", "season_start_year": 2020, "HomeTeam": "A", "AwayTeam": "B", "FTHG": 1, "FTAG": 0},
+        {
+            "Date": "2020-08-01",
+            "season_start_year": 2020,
+            "HomeTeam": "A",
+            "AwayTeam": "B",
+            "FTHG": 2,
+            "FTAG": 0,
+        },
+        {
+            "Date": "2020-08-08",
+            "season_start_year": 2020,
+            "HomeTeam": "B",
+            "AwayTeam": "A",
+            "FTHG": 1,
+            "FTAG": 1,
+        },
+        {
+            "Date": "2020-08-15",
+            "season_start_year": 2020,
+            "HomeTeam": "A",
+            "AwayTeam": "B",
+            "FTHG": 0,
+            "FTAG": 1,
+        },
+        {
+            "Date": "2020-08-22",
+            "season_start_year": 2020,
+            "HomeTeam": "B",
+            "AwayTeam": "A",
+            "FTHG": 2,
+            "FTAG": 2,
+        },
+        {
+            "Date": "2020-08-29",
+            "season_start_year": 2020,
+            "HomeTeam": "A",
+            "AwayTeam": "B",
+            "FTHG": 3,
+            "FTAG": 1,
+        },
+        {
+            "Date": "2020-09-05",
+            "season_start_year": 2020,
+            "HomeTeam": "B",
+            "AwayTeam": "A",
+            "FTHG": 0,
+            "FTAG": 0,
+        },
+        {
+            "Date": "2020-09-12",
+            "season_start_year": 2020,
+            "HomeTeam": "A",
+            "AwayTeam": "B",
+            "FTHG": 1,
+            "FTAG": 0,
+        },
     ]
     return _matches(rows)
 
@@ -53,10 +109,15 @@ def test_rolling_features_do_not_leak_into_the_past():
     features_original = build_features(matches)
 
     mutated = matches.copy()
-    mutated.loc[mutated.index[-1], ["FTHG", "FTAG"]] = [5, 0]  # flip the last match's scoreline
+    mutated.loc[mutated.index[-1], ["FTHG", "FTAG"]] = [
+        5,
+        0,
+    ]  # flip the last match's scoreline
     features_mutated = build_features(mutated)
 
-    feature_cols = [c for c in features_original.columns if c.startswith(("home_", "away_"))]
+    feature_cols = [
+        c for c in features_original.columns if c.startswith(("home_", "away_"))
+    ]
     pd.testing.assert_frame_equal(
         features_original.iloc[:-1][feature_cols],
         features_mutated.iloc[:-1][feature_cols],
@@ -68,15 +129,29 @@ def test_cold_start_flag_before_min_history_threshold():
     features = build_features(matches)
 
     # Both teams reach MIN_HISTORY (5) prior matches at match index 5 (the 6th match).
-    assert not features.iloc[: MIN_HISTORY]["has_min_history"].any()
+    assert not features.iloc[:MIN_HISTORY]["has_min_history"].any()
     assert features.iloc[MIN_HISTORY:]["has_min_history"].all()
 
 
 def test_table_position_is_as_of_match_date_not_final_standings():
     matches = _matches(
         [
-            {"Date": "2021-08-01", "season_start_year": 2021, "HomeTeam": "X", "AwayTeam": "Y", "FTHG": 1, "FTAG": 0},
-            {"Date": "2021-08-08", "season_start_year": 2021, "HomeTeam": "Y", "AwayTeam": "X", "FTHG": 3, "FTAG": 0},
+            {
+                "Date": "2021-08-01",
+                "season_start_year": 2021,
+                "HomeTeam": "X",
+                "AwayTeam": "Y",
+                "FTHG": 1,
+                "FTAG": 0,
+            },
+            {
+                "Date": "2021-08-08",
+                "season_start_year": 2021,
+                "HomeTeam": "Y",
+                "AwayTeam": "X",
+                "FTHG": 3,
+                "FTAG": 0,
+            },
         ]
     )
     matches["match_id"] = matches.index
@@ -85,8 +160,12 @@ def test_table_position_is_as_of_match_date_not_final_standings():
 
     # As of 2021-08-08 (before match 2 is played), only match 1 counts: X won, so X leads.
     as_of_second_match = standings[standings["Date"] == pd.Timestamp("2021-08-08")]
-    x_position = as_of_second_match.loc[as_of_second_match["team"] == "X", "position"].item()
-    y_position = as_of_second_match.loc[as_of_second_match["team"] == "Y", "position"].item()
+    x_position = as_of_second_match.loc[
+        as_of_second_match["team"] == "X", "position"
+    ].item()
+    y_position = as_of_second_match.loc[
+        as_of_second_match["team"] == "Y", "position"
+    ].item()
     assert x_position == 1
     assert y_position == 2
 

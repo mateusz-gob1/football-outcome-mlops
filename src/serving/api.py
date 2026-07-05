@@ -18,7 +18,11 @@ from mlflow import MlflowClient
 from src.data.ingest import season_start_year_for_date
 from src.features.build_features import build_features
 from src.models.registry import PRODUCTION_ALIAS, REGISTERED_MODEL_NAME
-from src.models.train import FEATURE_COLUMNS, PROCESSED_DATA_PATH, impute_missing_features
+from src.models.train import (
+    FEATURE_COLUMNS,
+    PROCESSED_DATA_PATH,
+    impute_missing_features,
+)
 from src.serving.schemas import HealthResponse, PredictRequest, PredictResponse
 
 logger = logging.getLogger(__name__)
@@ -30,14 +34,21 @@ _state: dict = {}
 async def lifespan(app: FastAPI):
     client = MlflowClient()
     version = client.get_model_version_by_alias(REGISTERED_MODEL_NAME, PRODUCTION_ALIAS)
-    model = mlflow.sklearn.load_model(f"models:/{REGISTERED_MODEL_NAME}@{PRODUCTION_ALIAS}")
+    model = mlflow.sklearn.load_model(
+        f"models:/{REGISTERED_MODEL_NAME}@{PRODUCTION_ALIAS}"
+    )
     historical = pd.read_csv(PROCESSED_DATA_PATH, parse_dates=["Date"])
 
     _state["model"] = model
     _state["model_version"] = str(version.version)
     _state["historical"] = historical
     _state["known_teams"] = set(historical["HomeTeam"]) | set(historical["AwayTeam"])
-    logger.info("Loaded %s v%s (alias=%s)", REGISTERED_MODEL_NAME, version.version, PRODUCTION_ALIAS)
+    logger.info(
+        "Loaded %s v%s (alias=%s)",
+        REGISTERED_MODEL_NAME,
+        version.version,
+        PRODUCTION_ALIAS,
+    )
 
     yield
     _state.clear()
@@ -57,12 +68,19 @@ def health() -> HealthResponse:
 
 @app.post("/predict", response_model=PredictResponse)
 def predict(request: PredictRequest) -> PredictResponse:
-    logger.info("predict request: %s vs %s on %s", request.home_team, request.away_team, request.match_date)
+    logger.info(
+        "predict request: %s vs %s on %s",
+        request.home_team,
+        request.away_team,
+        request.match_date,
+    )
 
     for team in (request.home_team, request.away_team):
         if team not in _state["known_teams"]:
             logger.warning("predict rejected: unknown team '%s'", team)
-            raise HTTPException(status_code=422, detail=f"Unknown team: '{team}' has no historical data")
+            raise HTTPException(
+                status_code=422, detail=f"Unknown team: '{team}' has no historical data"
+            )
 
     new_row = pd.DataFrame(
         [
@@ -77,6 +95,9 @@ def predict(request: PredictRequest) -> PredictResponse:
                 "B365H": request.b365h,
                 "B365D": request.b365d,
                 "B365A": request.b365a,
+                "BWH": request.bwh if request.bwh is not None else float("nan"),
+                "BWD": request.bwd if request.bwd is not None else float("nan"),
+                "BWA": request.bwa if request.bwa is not None else float("nan"),
                 "_is_query": True,
             }
         ]
@@ -88,12 +109,16 @@ def predict(request: PredictRequest) -> PredictResponse:
     query_row = features[features["_is_query"]]
 
     no_history = (
-        query_row[["home_matches_played_prior", "away_matches_played_prior"]].eq(0).any(axis=None)
+        query_row[["home_matches_played_prior", "away_matches_played_prior"]]
+        .eq(0)
+        .any(axis=None)
     )
     if no_history:
         logger.warning(
             "predict rejected: zero prior matches for %s or %s before %s",
-            request.home_team, request.away_team, request.match_date,
+            request.home_team,
+            request.away_team,
+            request.match_date,
         )
         raise HTTPException(
             status_code=422,
@@ -118,7 +143,11 @@ def predict(request: PredictRequest) -> PredictResponse:
 
     logger.info(
         "predict result: %s vs %s -> H=%.3f D=%.3f A=%.3f",
-        request.home_team, request.away_team, prob_by_class["H"], prob_by_class["D"], prob_by_class["A"],
+        request.home_team,
+        request.away_team,
+        prob_by_class["H"],
+        prob_by_class["D"],
+        prob_by_class["A"],
     )
 
     return PredictResponse(

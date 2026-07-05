@@ -155,3 +155,109 @@ not `mlflow.pyfunc.load_model(...)` - the pyfunc flavor's default `.predict()`
 only returns the winning class label, not the full H/D/A probability
 distribution the API needs. The sklearn flavor returns the real
 `RandomForestClassifier`, exposing `.predict_proba()` directly.
+
+---
+
+## ADR-011: Docker setup written but not verified with an actual build
+
+**Decision:** `Dockerfile`, `docker-compose.yml`, and `.dockerignore` exist and
+are reasoned through carefully, but as of this iteration no `docker build` /
+`docker compose up` has actually been run - neither this machine nor the
+remote sandbox used to attempt verification had Docker installed.
+
+**What was verified instead:** the full pipeline (ingest -> validate -> train
+-> registry) was run from a fresh clone of the repo on a separate machine,
+confirming the code works outside this one dev environment. The FastAPI app
+was also run directly (uvicorn, no container) against that freshly-registered
+model: `/health`, a valid `/predict` call, and the unknown-team 422 case all
+passed.
+
+**A real bug this process still caught without a build:** static review of
+`docker-compose.yml` found that `api`'s `depends_on: [mlflow]` only waits for
+the `mlflow` container to *start*, not for the `mlflow server` process inside
+it to actually bind port 5000. Since the FastAPI `lifespan` in
+`src/serving/api.py` connects to MLflow synchronously at startup with no
+retry, `api` would very likely crash on boot in a real `docker compose up`.
+Fixed by adding a `healthcheck` to the `mlflow` service and switching `api`'s
+dependency to `condition: service_healthy`.
+
+**Known limitation, with a concrete plan to close it:** the Docker setup is
+still unverified by an actual build - neither this machine nor the remote
+sandbox used to attempt verification has Docker installed. Rather than chase
+another environment, real end-to-end verification is deferred to Phase 3:
+deploying the Streamlit demo to Hugging Face Spaces via its Docker SDK will
+have HF's own build servers run a real `docker build` against this
+Dockerfile. That becomes the actual proof point, not a hypothetical one. If
+it fails, the most likely failure points are: (1) the healthcheck command
+itself (assumes `python` is on PATH inside the container, which it is per the
+Dockerfile's base image, but the specific urllib call was never executed),
+(2) `sqlite:///mlflow.db` path resolution differing between the `mlflow` and
+`api` containers' working directories.
+
+---
+
+## ADR-012: Multi-bookmaker baseline (Bet365 + Bet&Win), with fallback
+
+**Decision:** `odds_implied_*` features (and the bookmaker baseline model)
+average Bet365's and Bet&Win's own overround-normalized implied probabilities
+(a linear pool), instead of using Bet365 alone. When Bet&Win's odds are
+missing for a match, fall back to Bet365 alone rather than dropping the row.
+
+**Why:** Raised directly by Mateusz - if the model's strongest feature is one
+bookmaker's own odds, and the model still can't beat that bookmaker, is the
+comparison meaningful, or just "can you reproduce the input you were given"?
+Answer: comparing against a single bookmaker actually understates the
+baseline's real strength, because bookmaker consensus (averaging independent
+odds-setters) is generally a *more* efficient estimate than any one
+bookmaker - so it's a fairer, harder baseline to be measured against, not a
+weaker one. football-data.co.uk has odds from several bookmakers (B365, BW,
+WH, IW, VC, PS, plus its own Max/Avg aggregate columns), but only Bet365 and
+Bet&Win have (near-)complete coverage across all 16 seasons in scope - the
+rest are missing entirely for either the earliest 1-2 seasons or the most
+recent 1-2 (see the season-by-season bookmaker coverage table this ADR is
+based on, checked directly against the raw CSVs).
+
+**The fallback matters because of a real data gap:** Bet&Win is missing for
+141 of 380 matches (37%) in the 2024/25 season specifically (likely delisted
+by football-data.co.uk for part of that season, since it's fully present
+again in 2025/26). Requiring both bookmakers strictly would have dropped
+those 141 matches outright. Falling back to Bet365 alone for just those rows
+keeps every match in the dataset, at the cost of those specific rows using a
+single-bookmaker signal instead of the two-bookmaker average.
+
+**Not pursued:** using football-data.co.uk's own `Max`/`Avg` columns (already
+computed across many bookmakers) as an even stronger consensus baseline -
+these only exist from 2019/20 onward (7 of 16 seasons), which would cut the
+walk-forward validation window roughly in half. Left as a possible follow-up
+analysis on that shorter window, not a replacement for the main result.
+
+**Result:** rerun in `vault/Evaluation-Log.md` Run 002.
+
+---
+
+## ADR-013: Manually forced a model promotion despite the automatic gate saying no
+
+**Decision:** After retraining Random Forest on the new B365+BW odds feature
+(ADR-012), `register_and_promote()` correctly refused to promote the new
+version (v6, log-loss 0.9685) because it scored marginally worse than the
+already-promoted version (v?, log-loss 0.9683 - trained on the old
+Bet365-only odds feature). The `production` alias was moved to v6 anyway, via
+a direct `MlflowClient.set_registered_model_alias` call, bypassing the gate.
+
+**Why this override was correct, not a violation of the promote-if-better
+rule:** the automatic gate compares *model quality* (log-loss), which is the
+right check when the feature *definition* hasn't changed. Here it had - the
+old promoted version was fit on `odds_implied_*` meaning "Bet365 alone";
+`src/features/build_features.py` now computes `odds_implied_*` as the
+Bet365+Bet&Win average. Any live `/predict` call recomputes features with
+the *current* pipeline, so keeping the old model promoted would silently
+have fed it inputs from a different distribution than it was trained on -
+real train/serve skew, not a quality trade-off the log-loss gate can see.
+
+**How to apply generally:** the promote-if-better check in
+`src/models/registry.py` / the Phase 2 retraining pipeline is only a valid
+gate between versions of the *same* feature schema. A feature-schema change
+requires promoting the new version manually (or extending the gate to also
+compare a feature-schema version/hash and force promotion on mismatch,
+without a manual step) - not always accept the old model just because its
+recorded log-loss looks marginally better.

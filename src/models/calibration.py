@@ -56,7 +56,9 @@ def apply_calibrators(oof: pd.DataFrame, calibrators: dict) -> pd.DataFrame:
     return calibrated
 
 
-def evaluate_recalibration_benefit(oof: pd.DataFrame, split_season: int, method: str = "isotonic") -> dict:
+def evaluate_recalibration_benefit(
+    oof: pd.DataFrame, split_season: int, method: str = "isotonic"
+) -> dict:
     """Fit calibrators on seasons < split_season, measure log-loss change on seasons >= split_season.
 
     A negative `log_loss_change` means recalibration helped; positive means it hurt.
@@ -65,11 +67,17 @@ def evaluate_recalibration_benefit(oof: pd.DataFrame, split_season: int, method:
     calib_eval_set = oof[oof["test_season"] >= split_season]
 
     proba_cols = [f"proba_{c}" for c in CLASSES]
-    loss_before = log_loss(calib_eval_set["true_label"], calib_eval_set[proba_cols].to_numpy(), labels=CLASSES)
+    loss_before = log_loss(
+        calib_eval_set["true_label"],
+        calib_eval_set[proba_cols].to_numpy(),
+        labels=CLASSES,
+    )
 
     calibrators = fit_calibrators(calib_fit_set, method=method)
     recalibrated = apply_calibrators(calib_eval_set, calibrators)
-    loss_after = log_loss(recalibrated["true_label"], recalibrated[proba_cols].to_numpy(), labels=CLASSES)
+    loss_after = log_loss(
+        recalibrated["true_label"], recalibrated[proba_cols].to_numpy(), labels=CLASSES
+    )
 
     return {
         "method": method,
@@ -83,7 +91,9 @@ def evaluate_recalibration_benefit(oof: pd.DataFrame, split_season: int, method:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
     from src.models.evaluate import load_oof
 
     oof = load_oof("random_forest")

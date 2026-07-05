@@ -27,7 +27,9 @@ logger = logging.getLogger(__name__)
 REPORTS_DIR = Path(__file__).resolve().parents[2] / "data" / "processed" / "reports"
 
 FEATURE_GROUPS = {
-    "form": [c for c in FEATURE_COLUMNS if "form_pts" in c or "goals_" in c or "streak" in c],
+    "form": [
+        c for c in FEATURE_COLUMNS if "form_pts" in c or "goals_" in c or "streak" in c
+    ],
     "rest_days": [c for c in FEATURE_COLUMNS if "rest_days" in c],
     "table_position": [c for c in FEATURE_COLUMNS if "table_position" in c],
     "h2h": [c for c in FEATURE_COLUMNS if c.startswith("h2h")],
@@ -58,7 +60,9 @@ def log_loss_of(oof: pd.DataFrame) -> float:
 
 def brier_score(oof: pd.DataFrame) -> float:
     """Multiclass Brier score: mean squared error between one-hot true label and predicted probs."""
-    y_true_onehot = np.column_stack([(oof["true_label"] == cls).astype(float) for cls in CLASSES])
+    y_true_onehot = np.column_stack(
+        [(oof["true_label"] == cls).astype(float) for cls in CLASSES]
+    )
     y_pred = oof[[f"proba_{cls}" for cls in CLASSES]].to_numpy()
     return float(np.mean(np.sum((y_true_onehot - y_pred) ** 2, axis=1)))
 
@@ -71,14 +75,21 @@ def calibration_table(oof: pd.DataFrame, cls: str, n_bins: int = 10) -> pd.DataF
     table = (
         pd.DataFrame({"bin": bins, "predicted": probs, "actual": actual})
         .groupby("bin", observed=True)
-        .agg(mean_predicted=("predicted", "mean"), mean_actual=("actual", "mean"), n=("actual", "size"))
+        .agg(
+            mean_predicted=("predicted", "mean"),
+            mean_actual=("actual", "mean"),
+            n=("actual", "size"),
+        )
         .reset_index()
     )
     return table
 
 
 def bootstrap_log_loss_diff(
-    oof_model: pd.DataFrame, oof_baseline: pd.DataFrame, n_boot: int = 2000, seed: int = 42
+    oof_model: pd.DataFrame,
+    oof_baseline: pd.DataFrame,
+    n_boot: int = 2000,
+    seed: int = 42,
 ) -> dict:
     """95% bootstrap CI for (model log-loss - baseline log-loss) over the shared test matches.
 
@@ -88,9 +99,9 @@ def bootstrap_log_loss_diff(
     common_idx = oof_model.index.intersection(oof_baseline.index)
     model = oof_model.loc[common_idx]
     baseline = oof_baseline.loc[common_idx]
-    assert (model["true_label"].to_numpy() == baseline["true_label"].to_numpy()).all(), (
-        "model and baseline out-of-fold predictions must cover the same matches"
-    )
+    assert (
+        model["true_label"].to_numpy() == baseline["true_label"].to_numpy()
+    ).all(), "model and baseline out-of-fold predictions must cover the same matches"
 
     true_labels = model["true_label"].to_numpy()
     model_proba = model[[f"proba_{c}" for c in CLASSES]].to_numpy()
@@ -105,12 +116,17 @@ def bootstrap_log_loss_diff(
     diffs = np.empty(n_boot)
     for b in range(n_boot):
         idx = rng.integers(0, n, size=n)
-        diffs[b] = log_loss(true_labels[idx], model_proba[idx], labels=CLASSES) - log_loss(
-            true_labels[idx], baseline_proba[idx], labels=CLASSES
-        )
+        diffs[b] = log_loss(
+            true_labels[idx], model_proba[idx], labels=CLASSES
+        ) - log_loss(true_labels[idx], baseline_proba[idx], labels=CLASSES)
 
     ci_low, ci_high = np.percentile(diffs, [2.5, 97.5])
-    return {"point_diff": point_diff, "ci_low": ci_low, "ci_high": ci_high, "n_matches": n}
+    return {
+        "point_diff": point_diff,
+        "ci_low": ci_low,
+        "ci_high": ci_high,
+        "n_matches": n,
+    }
 
 
 def _rf_walk_forward_log_loss(data: pd.DataFrame, feature_cols: list[str]) -> float:
@@ -127,7 +143,13 @@ def _rf_walk_forward_log_loss(data: pd.DataFrame, feature_cols: list[str]) -> fl
 
 def ablation_study(data: pd.DataFrame) -> pd.DataFrame:
     """Log-loss impact of removing each feature group, using a fixed (non-tuned) Random Forest."""
-    rows = [{"removed_group": "none", "n_features": len(FEATURE_COLUMNS), "mean_log_loss": _rf_walk_forward_log_loss(data, FEATURE_COLUMNS)}]
+    rows = [
+        {
+            "removed_group": "none",
+            "n_features": len(FEATURE_COLUMNS),
+            "mean_log_loss": _rf_walk_forward_log_loss(data, FEATURE_COLUMNS),
+        }
+    ]
     for group, cols in FEATURE_GROUPS.items():
         remaining = [c for c in FEATURE_COLUMNS if c not in cols]
         rows.append(
@@ -138,7 +160,10 @@ def ablation_study(data: pd.DataFrame) -> pd.DataFrame:
             }
         )
     result = pd.DataFrame(rows)
-    result["log_loss_increase_vs_full"] = result["mean_log_loss"] - result.loc[result["removed_group"] == "none", "mean_log_loss"].iloc[0]
+    result["log_loss_increase_vs_full"] = (
+        result["mean_log_loss"]
+        - result.loc[result["removed_group"] == "none", "mean_log_loss"].iloc[0]
+    )
     return result
 
 
@@ -147,7 +172,9 @@ def feature_importance(data: pd.DataFrame) -> pd.DataFrame:
     model = make_random_forest({})
     model.fit(data[FEATURE_COLUMNS], data[TARGET_COLUMN])
     return (
-        pd.DataFrame({"feature": FEATURE_COLUMNS, "importance": model.feature_importances_})
+        pd.DataFrame(
+            {"feature": FEATURE_COLUMNS, "importance": model.feature_importances_}
+        )
         .sort_values("importance", ascending=False)
         .reset_index(drop=True)
     )
@@ -160,7 +187,14 @@ def run_evaluation() -> dict:
     oof = {name: load_oof(name) for name in MODEL_SPECS}
     summary_rows = []
     for name, o in oof.items():
-        summary_rows.append({"model": name, "log_loss": log_loss_of(o), "brier_score": brier_score(o), "n_matches": len(o)})
+        summary_rows.append(
+            {
+                "model": name,
+                "log_loss": log_loss_of(o),
+                "brier_score": brier_score(o),
+                "n_matches": len(o),
+            }
+        )
     summary = pd.DataFrame(summary_rows).sort_values("log_loss")
     summary.to_csv(REPORTS_DIR / "model_summary.csv", index=False)
     logger.info("Model summary:\n%s", summary.to_string(index=False))
@@ -173,13 +207,18 @@ def run_evaluation() -> dict:
         ci_rows.append({"model": name, **ci})
         logger.info(
             "%s vs bookmaker: log-loss diff %.4f, 95%% CI [%.4f, %.4f] (negative = model beats bookmaker)",
-            name, ci["point_diff"], ci["ci_low"], ci["ci_high"],
+            name,
+            ci["point_diff"],
+            ci["ci_low"],
+            ci["ci_high"],
         )
     ci_df = pd.DataFrame(ci_rows)
     ci_df.to_csv(REPORTS_DIR / "bootstrap_ci_vs_bookmaker.csv", index=False)
 
     home_calibration = calibration_table(oof["random_forest"], "H")
-    home_calibration.to_csv(REPORTS_DIR / "random_forest_calibration_home.csv", index=False)
+    home_calibration.to_csv(
+        REPORTS_DIR / "random_forest_calibration_home.csv", index=False
+    )
 
     ablation = ablation_study(data)
     ablation.to_csv(REPORTS_DIR / "random_forest_ablation.csv", index=False)
@@ -199,5 +238,7 @@ def run_evaluation() -> dict:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
     run_evaluation()

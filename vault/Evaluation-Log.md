@@ -61,3 +61,49 @@ and head-to-head history matter much less (+0.004-0.006 each). Top individual fe
 odds-implied probabilities themselves, then table position and 10-match form.
 
 **Changes since last run:** initial Phase 1 training run.
+
+---
+
+## Run 002 — 2026-07-05
+
+**Data:** same 16 seasons, 6080 matches ingested; 4954 used for training/evaluation (unchanged
+row counts - the multi-bookmaker change affects the odds feature, not which rows are usable).
+**Change:** `odds_implied_*` now averages Bet365 + Bet&Win's own overround-normalized
+probabilities (linear pool), falling back to Bet365 alone where Bet&Win is missing (144 matches,
+mostly the 2024/25 gap) - see ADR-012. Raised directly by Mateusz: comparing against a single
+bookmaker understates how strong the baseline really is, since bookmaker consensus is normally a
+*more* efficient estimate than any one bookmaker alone.
+**Walk-forward folds:** 11 (unchanged)
+
+| Model | Log-loss | Brier |
+|---|---|---|
+| Bookmaker baseline (B365+BW avg) | 0.9595 | 0.5685 |
+| Random Forest | 0.9685 | 0.5741 |
+| Logistic Regression | 0.9700 | 0.5729 |
+| XGBoost | 0.9836 | 0.5826 |
+
+**Model vs bookmaker log-loss diff (bootstrap, 2000 resamples, 95% CI):**
+- Random Forest: +0.0090, CI [0.0057, 0.0124]
+- Logistic Regression: +0.0105, CI [0.0054, 0.0169]
+- XGBoost: +0.0241, CI [0.0177, 0.0309]
+
+Same conclusion as Run 001, on a very slightly tougher baseline: the two-bookmaker consensus
+(0.9595) is marginally stronger than Bet365 alone (0.9598 in Run 001), and none of the three
+models close that gap - the CIs are still entirely above zero.
+
+**Calibration:** unchanged in shape (still well calibrated across H/D/A without reweighting).
+
+**Feature importance / ablation (Random Forest):** unchanged story - removing odds still hurts
+most (+0.0354), form second (+0.0259). The (now dual-bookmaker) odds features remain the top 3
+individually most important features.
+
+**Recalibration re-check:** isotonic now slightly *hurts* (+0.0340, vs. -0.0002/noise in Run 001)
+on this data; Platt/sigmoid still hurts (+0.0041). ADR-009's conclusion (don't recalibrate) still
+holds - if anything more clearly than before.
+
+**Model registry note (ADR-013):** the new Random Forest (v6) was marginally *worse* than the
+previously-promoted version (0.9685 vs 0.9683) and the automatic promote-if-better gate correctly
+refused to promote it. It was promoted anyway, manually, because the *feature definition* changed
+underneath it - keeping the old model in production would have created train/serve skew against
+the now-current `build_features.py`. A model-quality gate isn't the right check for a feature-schema
+change.

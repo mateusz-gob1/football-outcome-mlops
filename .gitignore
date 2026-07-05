@@ -5,6 +5,7 @@ __pycache__/
 mlruns/
 mlartifacts/
 mlflow.db
+data/processed/reports/drift_report.html
 *.egg-info/
 .env
 .DS_Store

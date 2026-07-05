@@ -8,27 +8,53 @@ leakage, as-of, and cold-start checks that guard this invariant.
 import numpy as np
 import pandas as pd
 
-MIN_HISTORY = 5  # matches a team must have played before its data counts toward evaluation
+MIN_HISTORY = (
+    5  # matches a team must have played before its data counts toward evaluation
+)
 H2H_WINDOW = 5
 FORM_WINDOWS = (5, 10)
 
 
 def _long_format(matches: pd.DataFrame) -> pd.DataFrame:
     """One row per team per match (home and away), sorted by team then date."""
-    home = matches[["match_id", "Date", "season_start_year", "HomeTeam", "FTHG", "FTAG"]].copy()
-    home.columns = ["match_id", "Date", "season_start_year", "team", "goals_for", "goals_against"]
+    home = matches[
+        ["match_id", "Date", "season_start_year", "HomeTeam", "FTHG", "FTAG"]
+    ].copy()
+    home.columns = [
+        "match_id",
+        "Date",
+        "season_start_year",
+        "team",
+        "goals_for",
+        "goals_against",
+    ]
 
-    away = matches[["match_id", "Date", "season_start_year", "AwayTeam", "FTAG", "FTHG"]].copy()
-    away.columns = ["match_id", "Date", "season_start_year", "team", "goals_for", "goals_against"]
+    away = matches[
+        ["match_id", "Date", "season_start_year", "AwayTeam", "FTAG", "FTHG"]
+    ].copy()
+    away.columns = [
+        "match_id",
+        "Date",
+        "season_start_year",
+        "team",
+        "goals_for",
+        "goals_against",
+    ]
 
     long = pd.concat([home, away], ignore_index=True)
     long["points"] = np.select(
-        [long["goals_for"] > long["goals_against"], long["goals_for"] == long["goals_against"]],
+        [
+            long["goals_for"] > long["goals_against"],
+            long["goals_for"] == long["goals_against"],
+        ],
         [3, 1],
         default=0,
     )
     long["result"] = np.select(
-        [long["goals_for"] > long["goals_against"], long["goals_for"] == long["goals_against"]],
+        [
+            long["goals_for"] > long["goals_against"],
+            long["goals_for"] == long["goals_against"],
+        ],
         ["W", "D"],
         default="L",
     )
@@ -84,7 +110,10 @@ def build_standings_asof(long: pd.DataFrame) -> pd.DataFrame:
     for season, group in long.groupby("season_start_year"):
         g = group.sort_values("Date").copy()
         g["cum_points"] = g.groupby("team")["points"].cumsum()
-        g["cum_gd"] = g.groupby("team")["goals_for"].cumsum() - g.groupby("team")["goals_against"].cumsum()
+        g["cum_gd"] = (
+            g.groupby("team")["goals_for"].cumsum()
+            - g.groupby("team")["goals_against"].cumsum()
+        )
 
         for match_date in sorted(g["Date"].unique()):
             prior = g[g["Date"] < match_date]
@@ -123,15 +152,21 @@ def _add_h2h(matches: pd.DataFrame) -> pd.DataFrame:
         recent = history.get(pair, [])[-H2H_WINDOW:]
         if recent:
             h2h_home_pts[i] = sum(
-                m["home_pts"] if m["home_team"] == row["HomeTeam"] else m["away_pts"] for m in recent
+                m["home_pts"] if m["home_team"] == row["HomeTeam"] else m["away_pts"]
+                for m in recent
             )
             h2h_away_pts[i] = sum(
-                m["home_pts"] if m["home_team"] == row["AwayTeam"] else m["away_pts"] for m in recent
+                m["home_pts"] if m["home_team"] == row["AwayTeam"] else m["away_pts"]
+                for m in recent
             )
             h2h_count[i] = len(recent)
 
-        home_pts = 3 if row["FTHG"] > row["FTAG"] else (1 if row["FTHG"] == row["FTAG"] else 0)
-        away_pts = 3 if row["FTAG"] > row["FTHG"] else (1 if row["FTHG"] == row["FTAG"] else 0)
+        home_pts = (
+            3 if row["FTHG"] > row["FTAG"] else (1 if row["FTHG"] == row["FTAG"] else 0)
+        )
+        away_pts = (
+            3 if row["FTAG"] > row["FTHG"] else (1 if row["FTHG"] == row["FTAG"] else 0)
+        )
         history.setdefault(pair, []).append(
             {
                 "home_team": row["HomeTeam"],
@@ -147,14 +182,37 @@ def _add_h2h(matches: pd.DataFrame) -> pd.DataFrame:
     return matches
 
 
-def _add_odds_features(matches: pd.DataFrame) -> pd.DataFrame:
-    raw_home = 1 / matches["B365H"]
-    raw_draw = 1 / matches["B365D"]
-    raw_away = 1 / matches["B365A"]
+def _normalized_implied_probs(
+    matches: pd.DataFrame, prefix: str
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """One bookmaker's implied probabilities, normalized to remove the overround."""
+    raw_home = 1 / matches[f"{prefix}H"]
+    raw_draw = 1 / matches[f"{prefix}D"]
+    raw_away = 1 / matches[f"{prefix}A"]
     overround = raw_home + raw_draw + raw_away
-    matches["odds_implied_home_prob"] = raw_home / overround
-    matches["odds_implied_draw_prob"] = raw_draw / overround
-    matches["odds_implied_away_prob"] = raw_away / overround
+    return raw_home / overround, raw_draw / overround, raw_away / overround
+
+
+def _add_odds_features(matches: pd.DataFrame) -> pd.DataFrame:
+    """Average Bet365 and Bet&Win's own overround-normalized probabilities (a linear
+    pool - the standard way to combine independent probability forecasts), falling
+    back to Bet365 alone where Bet&Win odds are missing (see ADR-012: BW has a large
+    gap in the 2024/25 season; falling back keeps every match instead of dropping ~37%
+    of that one season).
+    """
+    b365_home, b365_draw, b365_away = _normalized_implied_probs(matches, "B365")
+    bw_home, bw_draw, bw_away = _normalized_implied_probs(matches, "BW")
+    has_bw = matches[["BWH", "BWD", "BWA"]].notna().all(axis=1)
+
+    matches["odds_implied_home_prob"] = np.where(
+        has_bw, (b365_home + bw_home) / 2, b365_home
+    )
+    matches["odds_implied_draw_prob"] = np.where(
+        has_bw, (b365_draw + bw_draw) / 2, b365_draw
+    )
+    matches["odds_implied_away_prob"] = np.where(
+        has_bw, (b365_away + bw_away) / 2, b365_away
+    )
     return matches
 
 
@@ -177,24 +235,40 @@ def build_features(matches: pd.DataFrame) -> pd.DataFrame:
         "rest_days",
         "matches_played_prior",
     ]
-    home_side = long.merge(
-        matches[["match_id", "HomeTeam"]], left_on=["match_id", "team"], right_on=["match_id", "HomeTeam"]
-    )[["match_id"] + form_cols].add_prefix("home_").rename(columns={"home_match_id": "match_id"})
-    away_side = long.merge(
-        matches[["match_id", "AwayTeam"]], left_on=["match_id", "team"], right_on=["match_id", "AwayTeam"]
-    )[["match_id"] + form_cols].add_prefix("away_").rename(columns={"away_match_id": "match_id"})
+    home_side = (
+        long.merge(
+            matches[["match_id", "HomeTeam"]],
+            left_on=["match_id", "team"],
+            right_on=["match_id", "HomeTeam"],
+        )[["match_id"] + form_cols]
+        .add_prefix("home_")
+        .rename(columns={"home_match_id": "match_id"})
+    )
+    away_side = (
+        long.merge(
+            matches[["match_id", "AwayTeam"]],
+            left_on=["match_id", "team"],
+            right_on=["match_id", "AwayTeam"],
+        )[["match_id"] + form_cols]
+        .add_prefix("away_")
+        .rename(columns={"away_match_id": "match_id"})
+    )
 
     matches = matches.merge(home_side, on="match_id", how="left")
     matches = matches.merge(away_side, on="match_id", how="left")
 
     standings = build_standings_asof(long)
     matches = matches.merge(
-        standings.rename(columns={"team": "HomeTeam", "position": "home_table_position"}),
+        standings.rename(
+            columns={"team": "HomeTeam", "position": "home_table_position"}
+        ),
         on=["season_start_year", "Date", "HomeTeam"],
         how="left",
     )
     matches = matches.merge(
-        standings.rename(columns={"team": "AwayTeam", "position": "away_table_position"}),
+        standings.rename(
+            columns={"team": "AwayTeam", "position": "away_table_position"}
+        ),
         on=["season_start_year", "Date", "AwayTeam"],
         how="left",
     )
@@ -202,8 +276,8 @@ def build_features(matches: pd.DataFrame) -> pd.DataFrame:
     matches = _add_h2h(matches)
     matches = _add_odds_features(matches)
 
-    matches["has_min_history"] = (matches["home_matches_played_prior"] >= MIN_HISTORY) & (
-        matches["away_matches_played_prior"] >= MIN_HISTORY
-    )
+    matches["has_min_history"] = (
+        matches["home_matches_played_prior"] >= MIN_HISTORY
+    ) & (matches["away_matches_played_prior"] >= MIN_HISTORY)
 
     return matches

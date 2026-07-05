@@ -12,6 +12,15 @@ class PredictRequest(BaseModel):
     b365h: float = Field(..., gt=1.0, description="Bet365 home win odds")
     b365d: float = Field(..., gt=1.0, description="Bet365 draw odds")
     b365a: float = Field(..., gt=1.0, description="Bet365 away win odds")
+    bwh: float | None = Field(
+        None,
+        gt=1.0,
+        description="Bet&Win home win odds (optional; falls back to Bet365 alone if omitted)",
+    )
+    bwd: float | None = Field(None, gt=1.0, description="Bet&Win draw odds (optional)")
+    bwa: float | None = Field(
+        None, gt=1.0, description="Bet&Win away win odds (optional)"
+    )
 
     @model_validator(mode="after")
     def teams_must_differ(self) -> "PredictRequest":

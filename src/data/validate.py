@@ -26,6 +26,12 @@ REQUIRED_COLUMNS = [
     "B365A",
 ]
 
+# BW (Bet&Win) is present in 14/16 seasons but has a large gap in 2024/25
+# (141/380 matches missing - see ADR-012). Carried through when available and
+# averaged with B365 for a sturdier baseline/feature; falls back to B365 alone
+# for rows where it's missing, rather than dropping those matches entirely.
+OPTIONAL_COLUMNS = ["BWH", "BWD", "BWA"]
+
 FILENAME_RE = re.compile(rf"{LEAGUE_CODE}_(\d{{2}})(\d{{2}})\.csv")
 
 
@@ -45,7 +51,7 @@ def _season_start_year_from_filename(path: Path) -> int:
 def load_raw_season(path: Path) -> pd.DataFrame:
     """Load one raw season CSV and parse its date column."""
     df = pd.read_csv(path)
-    missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
+    missing = [c for c in REQUIRED_COLUMNS + OPTIONAL_COLUMNS if c not in df.columns]
     if missing:
         raise ValidationError(f"{path.name} is missing required columns: {missing}")
     df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, format="mixed")
@@ -57,14 +63,12 @@ def check_season(df: pd.DataFrame, season_start_year: int) -> list[str]:
     """Return a list of human-readable anomalies found in one season's data."""
     issues = []
 
-    null_counts = df[REQUIRED_COLUMNS].isnull().sum()
+    null_counts = df[REQUIRED_COLUMNS + OPTIONAL_COLUMNS].isnull().sum()
     for col, count in null_counts[null_counts > 0].items():
         issues.append(f"{count} missing value(s) in '{col}'")
 
     valid_scores = df["FTHG"].notna() & df["FTAG"].notna()
-    expected_result = pd.Series(
-        pd.NA, index=df.index, dtype="string"
-    )
+    expected_result = pd.Series(pd.NA, index=df.index, dtype="string")
     expected_result[valid_scores & (df["FTHG"] > df["FTAG"])] = "H"
     expected_result[valid_scores & (df["FTHG"] < df["FTAG"])] = "A"
     expected_result[valid_scores & (df["FTHG"] == df["FTAG"])] = "D"
@@ -76,7 +80,7 @@ def check_season(df: pd.DataFrame, season_start_year: int) -> list[str]:
     if negative_scores.any():
         issues.append(f"{negative_scores.sum()} row(s) with a negative score")
 
-    bad_odds = (df[["B365H", "B365D", "B365A"]] <= 1.0).any(axis=1)
+    bad_odds = (df[["B365H", "B365D", "B365A", "BWH", "BWD", "BWA"]] <= 1.0).any(axis=1)
     if bad_odds.any():
         issues.append(f"{bad_odds.sum()} row(s) with implausible odds (<=1.0)")
 
@@ -116,11 +120,15 @@ def validate_all(raw_dir: Path = RAW_DATA_DIR) -> pd.DataFrame:
         df = df.dropna(subset=REQUIRED_COLUMNS)
         dropped = before - len(df)
         if dropped:
-            logger.warning("%s: dropped %d row(s) with missing required fields", path.name, dropped)
+            logger.warning(
+                "%s: dropped %d row(s) with missing required fields", path.name, dropped
+            )
 
-        frames.append(df[REQUIRED_COLUMNS + ["season_start_year"]])
+        frames.append(df[REQUIRED_COLUMNS + OPTIONAL_COLUMNS + ["season_start_year"]])
 
-    combined = pd.concat(frames, ignore_index=True).sort_values("Date").reset_index(drop=True)
+    combined = (
+        pd.concat(frames, ignore_index=True).sort_values("Date").reset_index(drop=True)
+    )
     return combined
 
 
@@ -134,5 +142,7 @@ def save_validated(out_dir: Path = PROCESSED_DATA_DIR) -> Path:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
     save_validated()
