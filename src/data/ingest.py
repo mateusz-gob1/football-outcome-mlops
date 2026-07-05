@@ -19,10 +19,14 @@ def season_code(start_year: int) -> str:
     return f"{start_year % 100:02d}{end_year % 100:02d}"
 
 
+def season_start_year_for_date(d: dt.date) -> int:
+    """Start year of the Premier League season that `d` falls in (season starts in August)."""
+    return d.year - 1 if d.month < 8 else d.year
+
+
 def latest_season_start_year(today: dt.date | None = None) -> int:
-    """Start year of the most recently started season, as of `today`. Season starts in August."""
-    today = today or dt.date.today()
-    return today.year - 1 if today.month < 8 else today.year
+    """Start year of the most recently started season, as of `today`."""
+    return season_start_year_for_date(today or dt.date.today())
 
 
 def download_season_csv(start_year: int, league_code: str = LEAGUE_CODE) -> bytes:

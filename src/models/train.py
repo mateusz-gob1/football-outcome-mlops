@@ -119,6 +119,21 @@ MODEL_SPECS = {
 }
 
 
+def impute_missing_features(features: pd.DataFrame) -> pd.DataFrame:
+    """Impute season-opener table position and never-met h2h with neutral defaults.
+
+    Shared between training (prepare_dataset) and live serving (src/serving/api.py),
+    so the same rule is applied consistently and served predictions never silently
+    diverge from what the model was trained on (train/serve skew).
+    """
+    features = features.copy()
+    features["home_table_position"] = features["home_table_position"].fillna(10.5)
+    features["away_table_position"] = features["away_table_position"].fillna(10.5)
+    features["h2h_home_pts"] = features["h2h_home_pts"].fillna(0)
+    features["h2h_away_pts"] = features["h2h_away_pts"].fillna(0)
+    return features
+
+
 def prepare_dataset() -> pd.DataFrame:
     """Load validated matches, build features, and prepare the training/evaluation set.
 
@@ -131,12 +146,7 @@ def prepare_dataset() -> pd.DataFrame:
     matches = pd.read_csv(PROCESSED_DATA_PATH, parse_dates=["Date"])
     features = build_features(matches)
     features = features[features["has_min_history"]].copy()
-
-    features["home_table_position"] = features["home_table_position"].fillna(10.5)
-    features["away_table_position"] = features["away_table_position"].fillna(10.5)
-    features["h2h_home_pts"] = features["h2h_home_pts"].fillna(0)
-    features["h2h_away_pts"] = features["h2h_away_pts"].fillna(0)
-
+    features = impute_missing_features(features)
     features = features.dropna(subset=FEATURE_COLUMNS + [TARGET_COLUMN])
     return features
 

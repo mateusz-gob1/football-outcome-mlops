@@ -134,3 +134,24 @@ reweighting — see `vault/Evaluation-Log.md` Run 001.
 draw recall), rerun `src/models/calibration.py`'s benefit check before
 deciding whether to ship the recalibrated probabilities — don't assume it
 helps just because reweighting was used.
+
+---
+
+## ADR-010: MLflow "alias" instead of "stage" for the production model
+
+**Decision:** `src/models/registry.py` promotes model versions using MLflow's
+alias mechanism (`client.set_registered_model_alias(name, "production", version)`)
+rather than the older stage transition API (`transition_model_version_stage`).
+Serving code (Step 10) loads the model via `models:/football_outcome_predictor@production`.
+
+**Why:** MLflow deprecated model stages in favor of aliases/tags starting
+around 2.9; the installed version here (3.14) still exposes the old stage API
+for backward compatibility, but aliases are the current recommended approach.
+Functionally this achieves exactly what the plan calls "stage: Production" -
+same promote/rollback semantics, current API.
+
+**Note:** the registered model is loaded via `mlflow.sklearn.load_model(...)`,
+not `mlflow.pyfunc.load_model(...)` - the pyfunc flavor's default `.predict()`
+only returns the winning class label, not the full H/D/A probability
+distribution the API needs. The sklearn flavor returns the real
+`RandomForestClassifier`, exposing `.predict_proba()` directly.
