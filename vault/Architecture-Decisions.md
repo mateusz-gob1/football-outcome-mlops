@@ -266,6 +266,12 @@ resolves fine because it's the same filesystem. The bug is specific to
 crossing a host/container or container/container boundary, which is exactly
 why it only showed up once CI actually exercised Docker for real.
 
+**Resolved:** after three rounds of fixes (Host header allowlist, port
+qualification, artifact proxying), the `docker` job passed fully: build,
+`compose up`, `/health`, `/predict`, and the GHCR image push. ADR-011's
+"unverified" status is closed - this is now a real, repeatable check on
+every push.
+
 ## ADR-012: Multi-bookmaker baseline (Bet365 + Bet&Win), with fallback
 
 **Decision:** `odds_implied_*` features (and the bookmaker baseline model)
