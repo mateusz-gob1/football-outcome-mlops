@@ -11,7 +11,12 @@ services:
       [
         "mlflow", "server",
         "--backend-store-uri", "sqlite:///mlflow.db",
-        "--default-artifact-root", "./mlruns",
+        # --artifacts-destination (not --default-artifact-root) is what makes the
+        # server proxy artifact bytes over HTTP (mlflow-artifacts:/ scheme) instead
+        # of clients needing direct filesystem access to an absolute host path -
+        # see ADR-014. --default-artifact-root only affects brand-new experiments
+        # and doesn't fix ones already created outside a server.
+        "--artifacts-destination", "./mlruns",
         "--host", "0.0.0.0",
         "--port", "5000",
         # Without this, MLflow's DNS-rebinding protection rejects requests whose

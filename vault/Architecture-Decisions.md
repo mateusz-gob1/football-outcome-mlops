@@ -225,6 +225,47 @@ Compose network. It's the concrete argument for why "I wrote a Dockerfile"
 and "CI actually builds and runs it on every push" are different claims, and
 why the second one is worth having.
 
+**Fix (round 3 - the real bug):** with both host-header issues fixed, `mlflow`
+started healthy and `api` got further, but crashed with
+`mlflow.exceptions.MlflowException: No such artifact: ''` while loading the
+model. Root cause, confirmed by inspecting `mlflow.db` directly
+(`sqlite3 mlflow.db "SELECT artifact_location FROM experiments"`): every run's
+`artifact_uri` was an **absolute host filesystem path** -
+`file:///D:/AI-Career/football-outcome-mlops/mlruns/...` locally, or
+`file:///home/runner/work/.../mlruns/...` in CI - because `train.py` /
+`registry.py` call `mlflow.set_experiment(...)` directly against
+`sqlite:///mlflow.db`, with no `mlflow server` process involved at all. That
+absolute path means nothing inside a container's isolated filesystem, so any
+client without the *exact same* absolute path mounted at the *exact same*
+location cannot resolve it - "no such artifact" is that failure.
+
+Verified locally before touching CI (`mlflow server --backend-store-uri
+sqlite:///... --artifacts-destination ./test_artifacts`, then logged/loaded a
+throwaway sklearn model against `http://127.0.0.1:5001`): when a *real*
+`mlflow server` process is involved, `--serve-artifacts` defaults to `True`,
+and new experiments get an `artifact_uri` of `mlflow-artifacts:/...` instead
+of `file:///...` - clients then fetch artifact bytes over HTTP through the
+tracking server (proxied), never touching the filesystem directly. Confirmed
+end-to-end: logged a model against the test server, loaded it back via
+`models:/proxy_test_model/1`, worked.
+
+**Real fix:** `.github/workflows/ci.yml`'s `test` job now starts an actual
+`mlflow server --artifacts-destination ./mlruns` in the background (not a
+bare `sqlite:///` connection) before running the pipeline, with
+`MLFLOW_TRACKING_URI=http://127.0.0.1:5000` exported for the pipeline and
+test steps - so the experiment is created through the proxy from the start.
+`docker-compose.yml`'s `mlflow` service now uses `--artifacts-destination
+./mlruns` instead of `--default-artifact-root ./mlruns` (the latter, per
+MLflow's own docs, "does not impact already-created experiments" - it would
+have been a no-op fix).
+
+**Why local dev (non-Docker) was never affected:** running `uvicorn
+src.serving.api:app` directly on the same machine that registered the model
+has no container boundary to cross - the absolute `file:///D:/...` path
+resolves fine because it's the same filesystem. The bug is specific to
+crossing a host/container or container/container boundary, which is exactly
+why it only showed up once CI actually exercised Docker for real.
+
 ## ADR-012: Multi-bookmaker baseline (Bet365 + Bet&Win), with fallback
 
 **Decision:** `odds_implied_*` features (and the bookmaker baseline model)

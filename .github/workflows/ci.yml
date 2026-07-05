@@ -31,7 +31,23 @@ jobs:
           python-version: "3.10"
       - run: pip install -r requirements.txt
 
+      # Registering against a real mlflow server (not a bare sqlite:// file, which
+      # is what a plain `mlflow.set_experiment(...)` call uses by default) makes
+      # new experiments get the proxied "mlflow-artifacts:/" scheme instead of an
+      # absolute host filesystem path baked into mlflow.db. That's required for
+      # the model to be loadable later from inside a container - see ADR-014.
+      - name: Start MLflow server
+        run: |
+          mlflow server --backend-store-uri sqlite:///mlflow.db --artifacts-destination ./mlruns --host 127.0.0.1 --port 5000 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:5000 > /dev/null && exit 0
+            sleep 1
+          done
+          echo "MLflow server did not start in time" && exit 1
+
       - name: Run pipeline (ingest -> validate -> train -> registry)
+        env:
+          MLFLOW_TRACKING_URI: http://127.0.0.1:5000
         run: |
           python -m src.data.ingest
           python -m src.data.validate
@@ -39,6 +55,8 @@ jobs:
           python -m src.models.registry
 
       - name: Run tests
+        env:
+          MLFLOW_TRACKING_URI: http://127.0.0.1:5000
         run: pytest
 
       # The "production"-aliased model lives in mlflow.db/mlruns (both gitignored -
