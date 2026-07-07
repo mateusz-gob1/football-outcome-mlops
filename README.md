@@ -11,9 +11,9 @@ gets to a market that is very hard to beat.
 
 **Status: Phase 1 (MVP) complete. Phase 2 in progress** (Evidently drift
 monitoring, retraining pipeline with a promote-if-better guard, GitHub
-Actions CI done; Kubernetes manifests, Airflow, MinIO in progress). Phase 3
-(Streamlit demo on Hugging Face Spaces, architecture diagram, Medium article)
-not started yet.
+Actions CI, Kubernetes manifests, Airflow DAG done; MinIO not started - see
+ADR-017 for why it's lower priority but not skipped without reason). Phase 3
+(Streamlit demo on Hugging Face Spaces, architecture diagram) not started yet.
 
 ## Result
 
@@ -82,6 +82,21 @@ uvicorn src.serving.api:app --reload
 development, and is exercised end-to-end (build, start, `/health`,
 `/predict`) by the `docker` job in `.github/workflows/ci.yml` on every push -
 see ADR-011.
+
+## Orchestration (Airflow)
+
+`dags/retrain_dag.py` wraps the same five steps as
+`src/pipeline/retrain_pipeline.py` (ingest, validate, train, evaluate,
+promote-if-better) as an Airflow DAG on a weekly schedule. Run locally via:
+
+```bash
+docker compose -f docker-compose.airflow.yml up
+# UI at http://localhost:8080
+```
+
+Verified end-to-end by the `airflow` job in CI - not just that the DAG
+parses, but that a real trigger runs all five tasks to completion. See
+ADR-018 for the `airflow standalone` (single-container) choice and why.
 
 ## Tests
 

@@ -403,3 +403,48 @@ store as a single-writer bottleneck.
 
 **Not pursued yet:** this is documented as the known reason to eventually
 build MinIO support, not deferred without explanation.
+
+---
+
+## ADR-018: Airflow via `airflow standalone`, verified through CI like Docker
+
+**Decision:** `dags/retrain_dag.py`, `Dockerfile.airflow`, and
+`docker-compose.airflow.yml` run Airflow as a single container via
+`airflow standalone` (SQLite backend, SequentialExecutor, one process running
+webserver + scheduler + a one-time DB init) - not the full multi-container
+reference architecture (Postgres + Redis + separate webserver/scheduler/worker
+services) Airflow's official docker-compose example uses.
+
+**Why single-container:** the goal here is to demonstrate orchestration -
+turning `src/pipeline/retrain_pipeline.py`'s five steps into an Airflow DAG
+with independent, retryable, observable tasks - not to prove out
+production-scale concurrent task execution. `airflow standalone` is Airflow's
+own documented quick-start path for exactly this kind of scenario. Fewer
+moving parts also means fewer chances at another multi-round debugging cycle
+like ADR-014's Docker saga - a real, deliberate trade-off, not laziness.
+
+**Verification:** like Docker (ADR-011/014), this is checked for real via a
+dedicated `airflow` job in `.github/workflows/ci.yml` - builds the image,
+starts the container, waits for the webserver's `/health`, then actually
+**triggers the DAG and polls until it succeeds or fails**, not just "the
+container started." The DAG's real tasks (ingest 16 seasons, train 4 models
+with hyperparameter grids, evaluate, register) take several minutes - this
+proves the whole pipeline runs inside Airflow's task execution model, not
+just that the DAG file parses without errors.
+
+**Dependency risk, handled explicitly:** installing this project's full
+requirements.txt (mlflow, xgboost, evidently, ...) into Airflow's own image
+risks silently breaking Airflow's own pinned dependencies. `Dockerfile.airflow`
+installs against Airflow's official constraints file
+(`constraints-3.10.txt` for the matching Airflow version) to pin the packages
+Airflow itself depends on, while everything outside Airflow's dependency tree
+resolves normally.
+
+**Known simplification:** in a real production setup, heavy ML training
+would more likely run as a separate task (`DockerOperator`/
+`KubernetesPodOperator`) rather than importing training code directly into
+Airflow's own worker Python environment - keeping Airflow's runtime lean and
+avoiding exactly the dependency-conflict risk above. Here, `@task`-decorated
+functions call `src/models/train.py` etc. directly, which is simpler to
+demonstrate and verify but not how a larger real system would isolate
+concerns.

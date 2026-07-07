@@ -1,0 +1,22 @@
+services:
+  airflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.airflow
+    image: football-outcome-mlops-airflow:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+    # `airflow standalone` is a single-container quick-start command: it runs
+    # `airflow db migrate`, creates an admin user, and starts the webserver +
+    # scheduler with SequentialExecutor + SQLite - no separate Postgres/Redis
+    # services needed. See vault/Architecture-Decisions.md ADR-018 for why
+    # that trade-off is fine here (orchestration demo, not production scale).
+    command: ["airflow", "standalone"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s

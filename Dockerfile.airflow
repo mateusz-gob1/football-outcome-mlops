@@ -1,0 +1,16 @@
+FROM apache/airflow:2.10.4-python3.10
+
+COPY requirements.txt /tmp/project-requirements.txt
+
+# Airflow's own constraints file pins the versions of packages Airflow itself
+# depends on, so installing our ML stack alongside it doesn't silently break
+# Airflow. Packages outside Airflow's dependency tree (mlflow, xgboost,
+# evidently, ...) aren't in the constraints file and resolve normally.
+RUN pip install --no-cache-dir -r /tmp/project-requirements.txt \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.10.4/constraints-3.10.txt"
+
+COPY --chown=airflow:root src/ /opt/airflow/src/
+COPY --chown=airflow:root dags/ /opt/airflow/dags/
+COPY --chown=airflow:root data/processed/matches_validated.csv /opt/airflow/data/processed/matches_validated.csv
+
+ENV PYTHONPATH=/opt/airflow

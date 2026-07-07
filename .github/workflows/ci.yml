@@ -19,8 +19,8 @@ jobs:
         with:
           python-version: "3.10"
       - run: pip install -r requirements.txt
-      - run: black --check src/ tests/
-      - run: ruff check src/ tests/
+      - run: black --check src/ tests/ dags/
+      - run: ruff check src/ tests/ dags/
 
   test:
     runs-on: ubuntu-latest
@@ -124,3 +124,51 @@ jobs:
         run: |
           docker tag football-outcome-mlops-api:latest ghcr.io/${{ github.repository_owner }}/football-outcome-mlops-api:latest
           docker push ghcr.io/${{ github.repository_owner }}/football-outcome-mlops-api:latest
+
+  airflow:
+    # Independent of lint/test/docker (doesn't need their outputs) - runs in
+    # parallel to keep overall CI wall-clock time down.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Airflow image
+        run: docker compose -f docker-compose.airflow.yml build
+
+      - name: Start Airflow
+        run: docker compose -f docker-compose.airflow.yml up -d
+
+      - name: Wait for Airflow webserver
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8080/health > /dev/null; then exit 0; fi
+            sleep 5
+          done
+          echo "Airflow did not become healthy in time"
+          docker compose -f docker-compose.airflow.yml logs
+          exit 1
+
+      # The real DAG (ingest -> validate -> train 4 models -> evaluate -> promote)
+      # takes several minutes - this proves the whole thing actually runs inside
+      # Airflow, not just that the DAG file parses.
+      - name: Trigger the DAG and wait for it to finish
+        run: |
+          docker compose -f docker-compose.airflow.yml exec -T airflow airflow dags unpause football_retrain_pipeline
+          docker compose -f docker-compose.airflow.yml exec -T airflow airflow dags trigger football_retrain_pipeline
+          for i in $(seq 1 60); do
+            OUTPUT=$(docker compose -f docker-compose.airflow.yml exec -T airflow airflow dags list-runs -d football_retrain_pipeline -o plain)
+            echo "$OUTPUT"
+            if echo "$OUTPUT" | grep -q "success"; then echo "DAG run succeeded"; exit 0; fi
+            if echo "$OUTPUT" | grep -q "failed"; then echo "DAG run failed"; exit 1; fi
+            sleep 15
+          done
+          echo "DAG did not complete in time"
+          exit 1
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.airflow.yml logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.airflow.yml down -v
