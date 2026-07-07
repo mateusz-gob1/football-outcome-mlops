@@ -1,0 +1,17 @@
+# Minimal deps for the Airflow image - only what dags/retrain_dag.py's tasks
+# actually import (ingest/validate/train/evaluate/registry). Deliberately
+# excludes fastapi/uvicorn/pydantic/evidently/dvc/pytest/black/ruff/pre-commit,
+# none of which any DAG task touches - a smaller dependency surface means
+# fewer chances of conflicting with Airflow's own pinned versions (see
+# vault/Architecture-Decisions.md ADR-018).
+#
+# pandas is capped at <2.2 because Airflow 2.10.4's own constraints file pins
+# pandas==2.1.4 - installing against that constraints file with our normal
+# requirements.txt's pandas>=2.2 is unsolvable.
+pandas>=2.1,<2.2
+numpy>=1.26
+scikit-learn>=1.4
+xgboost>=2.0
+lightgbm>=4.3
+mlflow>=2.12
+requests>=2.31

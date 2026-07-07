@@ -432,13 +432,21 @@ with hyperparameter grids, evaluate, register) take several minutes - this
 proves the whole pipeline runs inside Airflow's task execution model, not
 just that the DAG file parses without errors.
 
-**Dependency risk, handled explicitly:** installing this project's full
-requirements.txt (mlflow, xgboost, evidently, ...) into Airflow's own image
-risks silently breaking Airflow's own pinned dependencies. `Dockerfile.airflow`
-installs against Airflow's official constraints file
-(`constraints-3.10.txt` for the matching Airflow version) to pin the packages
-Airflow itself depends on, while everything outside Airflow's dependency tree
-resolves normally.
+**Dependency risk, handled explicitly - and it fired on the first CI run:**
+installing this project's full requirements.txt (fastapi, evidently, dvc,
+pytest, black, ...) into Airflow's own image risks conflicting with Airflow's
+own pinned dependencies. `Dockerfile.airflow` installs against Airflow's
+official constraints file (`constraints-3.10.txt` for the matching Airflow
+version), and CI immediately hit exactly the predicted conflict: our
+`requirements.txt` requires `pandas>=2.2`, Airflow 2.10.4's constraints pin
+`pandas==2.1.4` - unsolvable together. Fixed by introducing
+`requirements-airflow.txt`, a separate, deliberately minimal dependency list
+containing only what `dags/retrain_dag.py`'s tasks actually import (pandas,
+numpy, scikit-learn, xgboost, lightgbm, mlflow, requests) - no
+fastapi/uvicorn/pydantic/evidently/dvc/pytest/black/ruff/pre-commit, none of
+which any DAG task touches. Smaller dependency surface, smaller conflict
+surface. `pandas` is explicitly capped `>=2.1,<2.2` to land on the exact
+version Airflow's constraints require.
 
 **Known simplification:** in a real production setup, heavy ML training
 would more likely run as a separate task (`DockerOperator`/
