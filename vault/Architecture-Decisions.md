@@ -337,3 +337,69 @@ requires promoting the new version manually (or extending the gate to also
 compare a feature-schema version/hash and force promotion on mismatch,
 without a manual step) - not always accept the old model just because its
 recorded log-loss looks marginally better.
+
+---
+
+## ADR-016: Kubernetes manifests, not a live cluster
+
+**Decision:** `k8s/deployment.yaml` and `k8s/service.yaml` define both
+services (`api`, `mlflow`) as Deployments + Services, plus a
+PersistentVolumeClaim for MLflow's data - but nothing here has been applied
+to a real cluster (no `kubectl apply` was run).
+
+**Why:** matches the plan's own scoping - a correct manifest plus the ability
+to explain it in an interview is the deliverable, not a running production
+cluster. Standing up a real cluster (minikube/kind/cloud) just to prove one
+`kubectl apply` works is disproportionate effort for a portfolio project at
+this stage, especially compared to Docker (ADR-011/014), where GitHub Actions
+already gave free, real, repeated verification - no equivalent free lunch
+exists for Kubernetes without deliberately provisioning a cluster.
+
+**Design choices carried over from the Docker setup, translated to K8s:**
+- Both Deployments reuse the single published image
+  (`ghcr.io/mateusz-gob1/football-outcome-mlops-api`), with the `mlflow`
+  Deployment overriding the container `command` to run `mlflow server`
+  instead of `uvicorn` - the same "one image, two roles" pattern
+  `docker-compose.yml` uses via its `command:` override.
+- `mlflow-service` is `ClusterIP` (internal-only); `api-service` is
+  `LoadBalancer` (the one meant to be reached from outside) - deliberately
+  asymmetric, not an oversight.
+- `--allowed-hosts=*` on the mlflow container, wider than Docker Compose's
+  explicit allowlist (ADR-014). Cluster-internal traffic arrives with the pod
+  IP as the Host header, not a stable name a short allowlist could cover -
+  acceptable here specifically because the service is ClusterIP-only, never
+  reachable from outside the cluster in the first place.
+- Both liveness/readiness probes point at the same endpoints proven to work
+  in the Docker healthcheck/CI smoke test (`/health` for `api`, `/` for
+  `mlflow`) - not guessed.
+
+**Known gap, not hidden:** `replicas: 1` on the `mlflow` Deployment isn't a
+placeholder value - see ADR-017.
+
+---
+
+## ADR-017: Why `mlflow` is pinned to `replicas: 1` (the real MinIO argument)
+
+**Decision:** the `mlflow` Deployment in `k8s/deployment.yaml` is hard-set to
+one replica, not left to autoscale like `api` (which runs 2).
+
+**Why:** the backend store is `sqlite:///data/mlflow.db` - a single file.
+SQLite does not safely support multiple processes writing to the same file
+concurrently the way a real database server does; two `mlflow` pods would
+race on the same file and corrupt it. This is a genuine scaling ceiling, not
+a style choice.
+
+**How this connects to MinIO (Phase 2, not yet built):** MinIO was originally
+scoped as "nicer artifact storage," but this ADR is the concrete argument for
+why it's actually a *correctness* upgrade, not just a convenience one -
+S3-compatible storage handles concurrent access safely, the way a shared
+filesystem/SQLite file does not. The real fix for horizontal scaling here is
+two-part: (1) a proper multi-writer backend store (Postgres/MySQL instead of
+SQLite) for run/experiment *metadata*, and (2) S3-compatible storage (MinIO
+or real S3) for the artifact *bytes* themselves, so `--artifacts-destination`
+points at a bucket rather than a PersistentVolume tied to one pod. Both are
+needed together - fixing only artifact storage still leaves the metadata
+store as a single-writer bottleneck.
+
+**Not pursued yet:** this is documented as the known reason to eventually
+build MinIO support, not deferred without explanation.

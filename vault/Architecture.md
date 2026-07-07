@@ -16,15 +16,19 @@ odds as the quality baseline.
 - Models: bookmaker baseline, logistic regression, random forest, XGBoost
 - Evaluation: log-loss (primary), Brier score, calibration, bootstrap CI vs baseline
 - Experiment tracking: MLflow (tracking + model registry, via aliases — ADR-010)
-- Serving: FastAPI (`/predict`, `/health`), Docker (build unverified — ADR-011)
+- Serving: FastAPI (`/predict`, `/health`), Docker (verified end-to-end by
+  GitHub Actions CI on every push — ADR-011/014)
 
 ## Scope (Phase 2 — full MLOps stack, in progress)
 
 Resequenced (see `Architecture-Decisions.md`) to do what's verifiable in this
-dev environment first: Evidently drift monitoring, the negative
-promote-if-better test, GitHub Actions CI, and Kubernetes manifests. Airflow
-and MinIO both require Docker, which isn't available here (same constraint as
-ADR-011) — written and reasoned through, verification deferred.
+dev environment first. Done: Evidently drift monitoring, the negative
+promote-if-better test, GitHub Actions CI (lint + pipeline/tests + a real
+`docker compose build/up` + smoke test + GHCR push), multi-bookmaker baseline
+(ADR-012), Kubernetes manifests (ADR-016/017 — written and reasoned through,
+not applied to a live cluster, matching the plan's own scope). Remaining:
+Airflow DAG, MinIO (lowest priority — see ADR-017 for why it's more than a
+"nicer storage" upgrade).
 
 ## Out of scope for Phase 2 (deferred to Phase 3)
 

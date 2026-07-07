@@ -1,0 +1,128 @@
+# Mirrors docker-compose.yml's two-service setup (api + mlflow), translated to
+# Kubernetes. Not deployed against a live cluster - see vault/Architecture-Decisions.md
+# ADR-016 for why a correct manifest is the deliverable here, not a running cluster.
+#
+# Both Deployments reuse the same published image (ghcr.io/.../football-outcome-mlops-api),
+# since both services build from the identical Dockerfile - the mlflow Deployment just
+# overrides the container command, exactly like docker-compose.yml's `command:` override.
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mlflow-data
+  labels:
+    app: mlflow
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow
+  labels:
+    app: mlflow
+spec:
+  # sqlite doesn't support concurrent writers - more than one replica would corrupt
+  # the backend store. See ADR-017 for why this is the real long-term argument for MinIO/
+  # a proper database backend, not just "nicer storage".
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+    spec:
+      containers:
+        - name: mlflow
+          image: ghcr.io/mateusz-gob1/football-outcome-mlops-api:latest
+          command: ["mlflow", "server"]
+          args:
+            - "--backend-store-uri=sqlite:///data/mlflow.db"
+            - "--artifacts-destination=/data/mlruns"
+            - "--host=0.0.0.0"
+            - "--port=5000"
+            # Broad on purpose: cluster-internal traffic arrives with the pod IP as the
+            # Host header, not a name matchable in a short allowlist - see ADR-014 for
+            # the DNS-rebinding checks this setting relaxes, and why that trade-off is
+            # acceptable here (mlflow-service is ClusterIP-only, never internet-facing).
+            - "--allowed-hosts=*"
+          ports:
+            - containerPort: 5000
+          volumeMounts:
+            - name: mlflow-data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      volumes:
+        - name: mlflow-data
+          persistentVolumeClaim:
+            claimName: mlflow-data
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  labels:
+    app: football-outcome-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: football-outcome-api
+  template:
+    metadata:
+      labels:
+        app: football-outcome-api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/mateusz-gob1/football-outcome-mlops-api:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: MLFLOW_TRACKING_URI
+              value: "http://mlflow-service:5000"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
