@@ -456,3 +456,9 @@ avoiding exactly the dependency-conflict risk above. Here, `@task`-decorated
 functions call `src/models/train.py` etc. directly, which is simpler to
 demonstrate and verify but not how a larger real system would isolate
 concerns.
+
+**Resolved:** after the `requirements-airflow.txt` fix, the `airflow` CI job
+passed fully - image build, webserver health, and a real DAG trigger through
+all five tasks (ingest, validate, train four models, evaluate, promote) to a
+successful run. All four CI jobs (`lint`, `test`, `docker`, `airflow`) are
+green together.

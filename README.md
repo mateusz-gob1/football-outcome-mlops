@@ -9,11 +9,13 @@ Model quality is benchmarked against a bookmaker consensus baseline, not just
 against random guessing — the goal is to know honestly how close the model
 gets to a market that is very hard to beat.
 
-**Status: Phase 1 (MVP) complete. Phase 2 in progress** (Evidently drift
-monitoring, retraining pipeline with a promote-if-better guard, GitHub
-Actions CI, Kubernetes manifests, Airflow DAG done; MinIO not started - see
-ADR-017 for why it's lower priority but not skipped without reason). Phase 3
-(Streamlit demo on Hugging Face Spaces, architecture diagram) not started yet.
+**Status: Phase 1 (MVP) complete. Phase 2 nearly complete** - Evidently drift
+monitoring, retraining pipeline with a promote-if-better guard, Kubernetes
+manifests, and both GitHub Actions CI and the Airflow DAG are verified
+end-to-end on every push (four green jobs: `lint`, `test`, `docker`,
+`airflow`). Only MinIO is left (lowest priority - see ADR-017 for why it's
+more than "nicer storage" but still not urgent). Phase 3 (Streamlit demo on
+Hugging Face Spaces, architecture diagram) not started yet.
 
 ## Result
 
