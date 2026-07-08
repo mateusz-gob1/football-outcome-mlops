@@ -72,6 +72,14 @@ jobs:
       - name: Build images
         run: docker compose build
 
+      # docker-compose.yml bind-mounts ./mlflow.db as a file. On a fresh checkout
+      # that path doesn't exist yet, and Docker's default behavior for a missing
+      # bind-mount source is to create a *directory* there instead of a file -
+      # mlflow then fails with "unable to open database file" because the sqlite
+      # backend finds a directory where a file should be. See ADR-019.
+      - name: Ensure mlflow.db exists before mounting it
+        run: touch mlflow.db
+
       - name: Start MinIO + MLflow
         run: docker compose up -d minio minio-init mlflow
 

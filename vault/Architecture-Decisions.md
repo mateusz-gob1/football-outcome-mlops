@@ -508,3 +508,15 @@ a local file mount does not) but not backend *metadata* store concurrency -
 `--backend-store-uri sqlite:///mlflow.db` is unchanged. A real multi-replica
 `mlflow` deployment still needs Postgres/MySQL for that half; this ADR closes
 one of the two gaps ADR-017 identified, not both.
+
+**Bug caught by CI, unrelated to S3/MinIO itself:** the first real run of the
+restructured `docker` job failed with `sqlite3.OperationalError: unable to
+open database file` - not an S3 problem at all. Removing the old
+`test`→`docker` artifact hand-off (ADR-019's main change) meant `./mlflow.db`
+no longer existed on the runner's filesystem *before* `docker compose up`.
+`docker-compose.yml` bind-mounts it as a file
+(`./mlflow.db:/app/mlflow.db`); Docker's default behavior when a bind-mount
+source path doesn't exist is to silently create a **directory** there instead
+of a file, so mlflow's sqlite backend found a directory where it expected a
+file. Fixed with a one-line `touch mlflow.db` step immediately before
+`docker compose up`, guaranteeing the mount target is a real (empty) file.
