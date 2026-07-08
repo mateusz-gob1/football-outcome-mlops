@@ -59,33 +59,46 @@ jobs:
           MLFLOW_TRACKING_URI: http://127.0.0.1:5000
         run: pytest
 
-      # The "production"-aliased model lives in mlflow.db/mlruns (both gitignored -
-      # see vault/Architecture-Decisions.md ADR-011). The docker job needs it too.
-      - name: Upload MLflow store
-        uses: actions/upload-artifact@v4
-        with:
-          name: mlflow-store
-          path: |
-            mlflow.db
-            mlruns/
-
   docker:
     needs: [lint, test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Download MLflow store
-        uses: actions/download-artifact@v4
+      - uses: actions/setup-python@v5
         with:
-          name: mlflow-store
-          path: .
+          python-version: "3.10"
+      - run: pip install -r requirements.txt
 
       - name: Build images
         run: docker compose build
 
-      - name: Start containers
-        run: docker compose up -d
+      - name: Start MinIO + MLflow
+        run: docker compose up -d minio minio-init mlflow
+
+      - name: Wait for MLflow health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5000 > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "MLflow did not become healthy in time"
+          docker compose logs
+          exit 1
+
+      # Registers a real model against the docker-composed, MinIO-backed mlflow -
+      # proves artifacts genuinely round-trip through S3-compatible storage, not
+      # just that the containers started. See ADR-019.
+      - name: Run pipeline against the containerized MLflow (writes to MinIO)
+        env:
+          MLFLOW_TRACKING_URI: http://localhost:5000
+        run: |
+          python -m src.data.ingest
+          python -m src.data.validate
+          python -m src.models.train
+          python -m src.models.registry
+
+      - name: Start API
+        run: docker compose up -d api
 
       - name: Wait for API health
         run: |

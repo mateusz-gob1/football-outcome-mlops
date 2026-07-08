@@ -1,4 +1,35 @@
 services:
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # web console
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin123 # dev-only credentials, not for real use
+    command: ["server", "/data", "--console-address", ":9001"]
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # One-shot: creates the bucket mlflow will write artifacts to, then exits.
+  # `mlflow server` does not create its own S3 bucket - see ADR-019.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin123 &&
+      mc mb --ignore-existing local/mlflow-artifacts
+      "
+
   mlflow:
     build: .
     image: football-outcome-mlops-mlflow:latest
@@ -6,7 +37,16 @@ services:
       - "5000:5000"
     volumes:
       - ./mlflow.db:/app/mlflow.db
-      - ./mlruns:/app/mlruns
+    environment:
+      # boto3 (mlflow's S3 client) needs these to reach MinIO instead of real AWS -
+      # see ADR-019 for why the client (api) never needs to know about any of this.
+      - MLFLOW_S3_ENDPOINT_URL=http://minio:9000
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin123
+      - AWS_DEFAULT_REGION=us-east-1
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
     command:
       [
         "mlflow", "server",
@@ -14,9 +54,8 @@ services:
         # --artifacts-destination (not --default-artifact-root) is what makes the
         # server proxy artifact bytes over HTTP (mlflow-artifacts:/ scheme) instead
         # of clients needing direct filesystem access to an absolute host path -
-        # see ADR-014. --default-artifact-root only affects brand-new experiments
-        # and doesn't fix ones already created outside a server.
-        "--artifacts-destination", "./mlruns",
+        # see ADR-014. Now points at the MinIO bucket instead of local disk (ADR-019).
+        "--artifacts-destination", "s3://mlflow-artifacts",
         "--host", "0.0.0.0",
         "--port", "5000",
         # Without this, MLflow's DNS-rebinding protection rejects requests whose
@@ -44,3 +83,6 @@ services:
     depends_on:
       mlflow:
         condition: service_healthy
+
+volumes:
+  minio-data:

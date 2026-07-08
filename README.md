@@ -9,13 +9,12 @@ Model quality is benchmarked against a bookmaker consensus baseline, not just
 against random guessing — the goal is to know honestly how close the model
 gets to a market that is very hard to beat.
 
-**Status: Phase 1 (MVP) complete. Phase 2 nearly complete** - Evidently drift
+**Status: Phase 1 (MVP) complete. Phase 2 complete.** Evidently drift
 monitoring, retraining pipeline with a promote-if-better guard, Kubernetes
-manifests, and both GitHub Actions CI and the Airflow DAG are verified
-end-to-end on every push (four green jobs: `lint`, `test`, `docker`,
-`airflow`). Only MinIO is left (lowest priority - see ADR-017 for why it's
-more than "nicer storage" but still not urgent). Phase 3 (Streamlit demo on
-Hugging Face Spaces, architecture diagram) not started yet.
+manifests, the Airflow DAG, and MinIO artifact storage are all verified
+end-to-end on every push (four green CI jobs: `lint`, `test`, `docker`,
+`airflow`). Phase 3 (Streamlit demo on Hugging Face Spaces, architecture
+diagram) not started yet.
 
 ## Result
 
@@ -80,10 +79,13 @@ uvicorn src.serving.api:app --reload
   (the API is designed for near-term fixtures, where odds already exist, not
   for predicting far-future/pre-season matches).
 
-`docker-compose.yml` runs the API alongside an MLflow UI for local
-development, and is exercised end-to-end (build, start, `/health`,
-`/predict`) by the `docker` job in `.github/workflows/ci.yml` on every push -
-see ADR-011.
+`docker-compose.yml` runs the API alongside MLflow (backed by MinIO for
+artifact storage - `s3://mlflow-artifacts`, see ADR-019) for local
+development, and is exercised end-to-end (build, register a real model
+against the containerized MLflow, start, `/health`, `/predict`) by the
+`docker` job in `.github/workflows/ci.yml` on every push - see ADR-011/014.
+MinIO's web console is at `http://localhost:9001`
+(`minioadmin` / `minioadmin123` - dev-only credentials).
 
 ## Orchestration (Airflow)
 

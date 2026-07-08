@@ -462,3 +462,49 @@ passed fully - image build, webserver health, and a real DAG trigger through
 all five tasks (ingest, validate, train four models, evaluate, promote) to a
 successful run. All four CI jobs (`lint`, `test`, `docker`, `airflow`) are
 green together.
+
+---
+
+## ADR-019: MinIO replaces local disk for MLflow artifacts (full integration)
+
+**Decision:** `docker-compose.yml` gained `minio` (S3-compatible storage) and
+`minio-init` (one-shot bucket creation) services. The `mlflow` service's
+`--artifacts-destination` now points at `s3://mlflow-artifacts` instead of a
+locally-mounted `./mlruns` directory, with `MLFLOW_S3_ENDPOINT_URL` and dummy
+AWS credentials pointed at MinIO.
+
+**Why full integration, not a standalone demo:** MinIO was scoped as
+"nicer artifact storage," but replacing the working local-disk setup end to
+end - not bolting on a side demo - is what actually proves the swap works,
+consistent with how Docker (ADR-011/014) and Airflow (ADR-018) were each
+verified for real rather than left as "should work." The trade-off, accepted
+knowingly: this touches the `docker` CI job that took three debugging rounds
+to get green (ADR-014), so it carries real regression risk.
+
+**Why the `api` container needed zero changes:** because ADR-014 already
+made the `mlflow` server proxy all artifact access (the `mlflow-artifacts:/`
+scheme), swapping *where* the server physically stores bytes - local disk vs.
+an S3 bucket - is entirely the server's own concern. `api` only ever talks to
+`mlflow-service:5000` over HTTP, exactly as before; it has no AWS credentials
+and no idea MinIO exists. This is the payoff of building the proxy correctly
+the first time, not a coincidence.
+
+**CI restructuring this required:** the old flow had the `test` job register
+a model against a bare local `mlflow server` and hand the resulting
+`mlflow.db`/`mlruns` files to the `docker` job as a build artifact. That
+stops working once artifacts live in MinIO - the `test` job's local-disk
+artifacts have nothing to do with the `docker` job's MinIO bucket. New flow:
+the `docker` job now starts `minio` + `minio-init` + `mlflow` *first*, then
+runs the full ingest/validate/train/registry pipeline directly against that
+containerized, MinIO-backed `mlflow` (reusing the same pattern the `test` and
+`airflow` jobs already use), and only *then* starts `api`. The artifact
+upload/download step between `test` and `docker` was removed entirely - each
+job is now fully self-contained, which is simpler to reason about than the
+hand-off it replaced.
+
+**Known limitation, documented not hidden (see ADR-017):** this fixes
+artifact *storage* concurrency (S3 handles concurrent readers/writers safely,
+a local file mount does not) but not backend *metadata* store concurrency -
+`--backend-store-uri sqlite:///mlflow.db` is unchanged. A real multi-replica
+`mlflow` deployment still needs Postgres/MySQL for that half; this ADR closes
+one of the two gaps ADR-017 identified, not both.
