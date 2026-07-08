@@ -1,5 +1,8 @@
 # Football Match Outcome Prediction — MLOps Pipeline
 
+[![CI](https://github.com/mateusz-gob1/football-outcome-mlops/actions/workflows/ci.yml/badge.svg)](https://github.com/mateusz-gob1/football-outcome-mlops/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Predicts football match outcomes (Home Win / Draw / Away Win) with a focus on
 methodological rigor (leak-free temporal validation, calibrated probabilities,
 statistically grounded evaluation) and a complete MLOps stack (experiment
@@ -101,6 +104,23 @@ docker compose -f docker-compose.airflow.yml up
 Verified end-to-end by the `airflow` job in CI - not just that the DAG
 parses, but that a real trigger runs all five tasks to completion. See
 ADR-018 for the `airflow standalone` (single-container) choice and why.
+
+## Continuous Integration
+
+Every push to `main` runs four jobs on GitHub's own runners, not just locally
+claimed to work: **[see live runs →](https://github.com/mateusz-gob1/football-outcome-mlops/actions)**
+
+| Job | What it actually does |
+|---|---|
+| `lint` | `black --check` + `ruff check` across the whole codebase |
+| `test` | Fresh `ingest → validate → train → registry` run, then all 18 `pytest` tests |
+| `docker` | Builds both images, brings up MinIO + MLflow, registers a real model against them, starts the API, and curls `/health` + `/predict` |
+| `airflow` | Builds the Airflow image, starts it, and **triggers the actual DAG** - all 5 tasks run to completion, not just "the file parses" |
+
+Each of these is documented in `vault/Architecture-Decisions.md` with the
+real bugs it caught on the way to green (ADR-014, ADR-018, ADR-019) - the
+point isn't that it worked on the first try, it's that every claim here is
+checked by a machine on every push, not asserted in prose.
 
 ## Demo
 
