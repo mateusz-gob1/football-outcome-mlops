@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Football Outcome Predictor</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="app">
+    <header class="topnav">
+      <div class="brand">
+        <div class="brand-mark">⚽</div>
+        <div>
+          <span class="brand-name">Football Outcome Predictor</span>
+          <span class="brand-sub">Walk-forward validated Random Forest vs bookmaker odds</span>
+        </div>
+      </div>
+      <div class="topnav-right">
+        <span class="demo-pill">Static demo &middot; pre-computed results, not a live model</span>
+        <a class="repo-link" href="https://github.com/mateusz-gob1/football-outcome-mlops" target="_blank" rel="noopener">GitHub repo →</a>
+      </div>
+    </header>
+
+    <div class="body">
+      <main class="main">
+        <div class="tabs">
+          <button class="tab-btn active" data-tab="browse">Browse Matches</button>
+          <button class="tab-btn" data-tab="performance">Model Performance</button>
+        </div>
+
+        <section id="browse" class="tab-panel active">
+          <div class="page-title">
+            <h1>Historical matches: model vs bookmaker vs actual result</h1>
+            <p>4,125 out-of-fold walk-forward test matches, Premier League 2015/16&ndash;2025/26 &mdash; every prediction here is on a match the model never saw during training.</p>
+          </div>
+
+          <div class="filters">
+            <label>
+              Season
+              <select id="season-filter"></select>
+            </label>
+            <label>
+              Team
+              <select id="team-filter">
+                <option value="">All teams</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="overview-kpis" id="browse-kpis">
+            <div class="kpi-card">
+              <div class="kpi-label">Matches shown</div>
+              <div class="kpi-value" id="kpi-count">&ndash;</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Model accuracy</div>
+              <div class="kpi-value" id="kpi-model-acc">&ndash;</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Bookmaker accuracy</div>
+              <div class="kpi-value" id="kpi-book-acc">&ndash;</div>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table id="matches-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Home</th>
+                  <th>Away</th>
+                  <th>Model pick</th>
+                  <th>Bookmaker pick</th>
+                  <th>Actual</th>
+                  <th>Model</th>
+                  <th>Bookmaker</th>
+                </tr>
+              </thead>
+              <tbody id="matches-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="performance" class="tab-panel">
+          <div class="page-title">
+            <h1>Log-loss &amp; Brier score: model vs bookmaker</h1>
+            <p>Log-loss is the primary metric (a proper scoring rule) &mdash; lower is better. Random guessing over 3 classes scores about 1.10.</p>
+          </div>
+
+          <div class="table-wrap">
+            <table id="summary-table">
+              <thead>
+                <tr><th>Model</th><th>Log-loss</th><th>Brier score</th><th>Matches</th></tr>
+              </thead>
+              <tbody id="summary-tbody"></tbody>
+            </table>
+          </div>
+
+          <div class="page-title" style="margin-top: 32px;">
+            <h1>Is the difference real, or just noise?</h1>
+            <p>Bootstrap 95% CI on (model log-loss &minus; bookmaker log-loss), 2000 resamples. Positive means the model is worse.</p>
+          </div>
+          <div class="table-wrap">
+            <table id="ci-table">
+              <thead>
+                <tr><th>Model</th><th>Diff</th><th>95% CI low</th><th>95% CI high</th></tr>
+              </thead>
+              <tbody id="ci-tbody"></tbody>
+            </table>
+          </div>
+          <p class="note">All three intervals sit entirely above zero &mdash; none of the trained models beat the bookmaker baseline, and the gap is statistically significant, not noise.</p>
+
+          <div class="charts-grid">
+            <div class="chart-card">
+              <h2>Calibration (Random Forest, home-win predictions)</h2>
+              <p class="note">If the model says &ldquo;70% chance of a home win,&rdquo; that should actually happen about 70% of the time.</p>
+              <canvas id="calibration-chart"></canvas>
+            </div>
+            <div class="chart-card">
+              <h2>What drives the model&rsquo;s predictions?</h2>
+              <p class="note">Top 10 features by importance (Random Forest).</p>
+              <canvas id="importance-chart"></canvas>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

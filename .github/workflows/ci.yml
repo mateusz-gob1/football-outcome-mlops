@@ -19,8 +19,8 @@ jobs:
         with:
           python-version: "3.10"
       - run: pip install -r requirements.txt
-      - run: black --check src/ tests/ dags/ streamlit_app/
-      - run: ruff check src/ tests/ dags/ streamlit_app/
+      - run: black --check src/ tests/ dags/ frontend/
+      - run: ruff check src/ tests/ dags/ frontend/
 
   test:
     runs-on: ubuntu-latest

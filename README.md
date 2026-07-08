@@ -16,7 +16,7 @@ gets to a market that is very hard to beat.
 monitoring, retraining pipeline with a promote-if-better guard, Kubernetes
 manifests, the Airflow DAG, and MinIO artifact storage are all verified
 end-to-end on every push (four green CI jobs: `lint`, `test`, `docker`,
-`airflow`). Phase 3 in progress: Streamlit demo built (see below);
+`airflow`). Phase 3 in progress: static demo dashboard built (see below);
 architecture diagram not started yet.
 
 ## Result
@@ -124,16 +124,22 @@ checked by a machine on every push, not asserted in prose.
 
 ## Demo
 
-`streamlit_app/` is a standalone dashboard (browse historical predictions vs
-bookmaker odds vs actual results, plus the full model-vs-bookmaker
-comparison from the Result table above). It ships with pre-computed
-out-of-fold predictions rather than a live model - see ADR-020 for why. Run
-locally:
+`frontend/` is a standalone static dashboard (browse historical predictions
+vs bookmaker odds vs actual results, plus the full model-vs-bookmaker
+comparison from the Result table above) - plain HTML/CSS/JS, no server, no
+live model. It ships with pre-computed out-of-fold predictions rather than a
+live model - see ADR-020 for why. Run locally:
 
 ```bash
-cd streamlit_app
-pip install -r requirements.txt
-streamlit run app.py
+cd frontend
+python -m http.server 8000
+# open http://localhost:8000
+```
+
+Regenerate the underlying JSON (after retraining, or if the data changes):
+
+```bash
+python frontend/prepare_data.py
 ```
 
 ## Tests

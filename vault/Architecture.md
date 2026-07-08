@@ -19,20 +19,21 @@ odds as the quality baseline.
 - Serving: FastAPI (`/predict`, `/health`), Docker (verified end-to-end by
   GitHub Actions CI on every push — ADR-011/014)
 
-## Scope (Phase 2 — full MLOps stack, in progress)
+## Scope (Phase 2 — full MLOps stack, complete)
 
 Resequenced (see `Architecture-Decisions.md`) to do what's verifiable in this
-dev environment first. Done: Evidently drift monitoring, the negative
-promote-if-better test, GitHub Actions CI (lint + pipeline/tests + a real
-`docker compose build/up` + smoke test + GHCR push), multi-bookmaker baseline
+dev environment first: Evidently drift monitoring, the negative
+promote-if-better test, GitHub Actions CI, multi-bookmaker baseline
 (ADR-012), Kubernetes manifests (ADR-016/017 — written and reasoned through,
-not applied to a live cluster, matching the plan's own scope). Remaining:
-Airflow DAG, MinIO (lowest priority — see ADR-017 for why it's more than a
-"nicer storage" upgrade).
+not applied to a live cluster, matching the plan's own scope), the Airflow
+DAG (ADR-018), and MinIO artifact storage (ADR-019). All four CI jobs
+(`lint`, `test`, `docker`, `airflow`) verify this end-to-end on every push -
+see the README's Continuous Integration section.
 
-## Out of scope for Phase 2 (deferred to Phase 3)
+## Scope (Phase 3 — portfolio polish, in progress)
 
-Streamlit demo, HF Spaces deployment, architecture diagram, Medium article.
+Done: static demo dashboard (`frontend/`, ADR-020). Remaining: architecture
+diagram. Not pursued: Medium article (scope trimmed by explicit decision).
 
 ## Data flow
 
@@ -47,6 +48,8 @@ football-data.co.uk (CSV)
   -> src/models/registry.py (MLflow Model Registry, "production" alias)
   -> src/serving/api.py (FastAPI, loads the aliased model)
   -> src/monitoring/drift.py (Evidently: feature drift, recent seasons vs history)
+  -> dags/retrain_dag.py (Airflow: the same cycle above, scheduled weekly)
+  -> frontend/prepare_data.py (exports out-of-fold results to static JSON for the demo)
 ```
 
 This document is updated as each component is built.

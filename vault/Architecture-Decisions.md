@@ -529,11 +529,11 @@ read back from the MinIO bucket, `api` started against it, and `/health` +
 
 ---
 
-## ADR-020: Streamlit demo ships pre-computed predictions, not a live model
+## ADR-020: Demo ships pre-computed predictions, not a live model
 
-**Decision:** `streamlit_app/app.py` reads static CSVs
-(`streamlit_app/data/*.csv`) generated once by `streamlit_app/prepare_data.py`.
-It does not load the trained model, call MLflow, or run
+**Decision:** `frontend/app.js` fetches static JSON
+(`frontend/data/*.json`) generated once by `frontend/prepare_data.py`. It
+does not load the trained model, call MLflow, or run
 `src/features/build_features.py` at runtime.
 
 **Why:** the plan's original ask was a dashboard showing "predictions for the
@@ -549,15 +549,15 @@ available substitute that still demonstrates the same thing (model vs
 bookmaker vs reality) the live version would have.
 
 **Why this is also the right call independent of the timing issue:** a
-Streamlit Space that loads a live model needs either (a) a reachable MLflow
+dashboard that loads a live model needs either (a) a reachable MLflow
 tracking server (meaning deploying and keeping MLflow+MinIO running
-somewhere the Space can reach, well beyond a demo's scope) or (b) a model
-file bundled into the Space with its own inference code duplicated from
-`src/`. Both add real operational surface for a component whose only job is
-"show what we already proved in vault/Evaluation-Log.md." Shipping the
-already-computed, already-validated out-of-fold results is simpler, faster
-to load, and cannot drift from the numbers reported elsewhere in this
-project, because they *are* those numbers.
+somewhere the demo can reach, well beyond a demo's scope) or (b) a model
+file bundled in with its own inference code duplicated from `src/`. Both add
+real operational surface for a component whose only job is "show what we
+already proved in vault/Evaluation-Log.md." Shipping the already-computed,
+already-validated out-of-fold results is simpler, faster to load, and cannot
+drift from the numbers reported elsewhere in this project, because they
+*are* those numbers.
 
 **Trade-off, stated plainly:** this demo cannot answer "who wins Arsenal vs
 Chelsea next week" - only "here's how the model did on real matches it never
@@ -565,9 +565,22 @@ saw during training." For a portfolio piece whose point is demonstrating
 methodology and honest evaluation, that is the more relevant claim to make
 visually, not a compromise.
 
-**Deployment:** a standalone HF Spaces app (`streamlit_app/` is the entire
-Space - `README.md` carries the required HF YAML frontmatter, `app_file:
-app.py`, `sdk: streamlit`), independent of the Docker/K8s/Airflow/MinIO stack
-built in Phase 2. Verified locally via the Preview tool (screenshots, console
-clean) before deployment - see chat history for confirmation both tabs
-render correctly with real data.
+**Technology pivot - Streamlit, then plain HTML/CSS/JS:** the first version
+of this demo was a Streamlit app. Two things changed that: (1) Hugging Face
+deprecated Streamlit as a native Spaces SDK - deploying one now means
+choosing the Docker SDK with a Streamlit template, and the account used here
+showed Docker/Gradio gated behind a paid plan (Static Spaces stayed free);
+(2) checking this project's own prior work (`football-agent/frontend/`,
+`financial-doc-agent/frontend/`) showed neither uses Streamlit either - both
+ship a static HTML/CSS/JS dashboard (dark-neutral theme, Geist font,
+Chart.js) served by their own API. Rebuilding this demo the same way
+(`frontend/index.html` + `style.css` + `app.js`, Chart.js for the
+calibration/importance charts) gets a free, unblocked Static Space *and*
+visual consistency with the rest of the portfolio - not a fallback, the
+better option once the constraint surfaced.
+
+**Deployment:** a standalone HF Spaces Static app (`frontend/` is the entire
+Space - `README.md` carries the required HF YAML frontmatter, `sdk: static`),
+independent of the Docker/K8s/Airflow/MinIO stack built in Phase 2. Verified
+locally via the Preview tool (screenshots, console clean, season/team
+filtering exercised) before deployment.
