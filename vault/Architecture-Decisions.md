@@ -520,3 +520,9 @@ source path doesn't exist is to silently create a **directory** there instead
 of a file, so mlflow's sqlite backend found a directory where it expected a
 file. Fixed with a one-line `touch mlflow.db` step immediately before
 `docker compose up`, guaranteeing the mount target is a real (empty) file.
+
+**Resolved:** the next CI run passed fully - `mlflow` came up healthy, a real
+model trained and registered with its artifacts genuinely written to and
+read back from the MinIO bucket, `api` started against it, and `/health` +
+`/predict` both succeeded. All four CI jobs (`lint`, `test`, `docker`,
+`airflow`) green together. Phase 2 is complete.
