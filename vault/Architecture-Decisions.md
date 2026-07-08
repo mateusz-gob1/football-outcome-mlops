@@ -526,3 +526,48 @@ model trained and registered with its artifacts genuinely written to and
 read back from the MinIO bucket, `api` started against it, and `/health` +
 `/predict` both succeeded. All four CI jobs (`lint`, `test`, `docker`,
 `airflow`) green together. Phase 2 is complete.
+
+---
+
+## ADR-020: Streamlit demo ships pre-computed predictions, not a live model
+
+**Decision:** `streamlit_app/app.py` reads static CSVs
+(`streamlit_app/data/*.csv`) generated once by `streamlit_app/prepare_data.py`.
+It does not load the trained model, call MLflow, or run
+`src/features/build_features.py` at runtime.
+
+**Why:** the plan's original ask was a dashboard showing "predictions for the
+upcoming gameweek." At the time this was built the 2025/26 season had already
+finished and 2026/27 hadn't started yet (see the "Timing" note in the
+original plan re: the 2026/27 season starting shortly after this project) -
+there was no live upcoming gameweek to predict. Rather than block the demo on
+a season starting, or bolt on a fake "pretend this date is live" flow, the
+demo browses real historical out-of-fold predictions instead: for every match
+in the 2015/16-2025/26 seasons, it shows what the model predicted, what the
+bookmaker implied, and what actually happened - a truthful, immediately
+available substitute that still demonstrates the same thing (model vs
+bookmaker vs reality) the live version would have.
+
+**Why this is also the right call independent of the timing issue:** a
+Streamlit Space that loads a live model needs either (a) a reachable MLflow
+tracking server (meaning deploying and keeping MLflow+MinIO running
+somewhere the Space can reach, well beyond a demo's scope) or (b) a model
+file bundled into the Space with its own inference code duplicated from
+`src/`. Both add real operational surface for a component whose only job is
+"show what we already proved in vault/Evaluation-Log.md." Shipping the
+already-computed, already-validated out-of-fold results is simpler, faster
+to load, and cannot drift from the numbers reported elsewhere in this
+project, because they *are* those numbers.
+
+**Trade-off, stated plainly:** this demo cannot answer "who wins Arsenal vs
+Chelsea next week" - only "here's how the model did on real matches it never
+saw during training." For a portfolio piece whose point is demonstrating
+methodology and honest evaluation, that is the more relevant claim to make
+visually, not a compromise.
+
+**Deployment:** a standalone HF Spaces app (`streamlit_app/` is the entire
+Space - `README.md` carries the required HF YAML frontmatter, `app_file:
+app.py`, `sdk: streamlit`), independent of the Docker/K8s/Airflow/MinIO stack
+built in Phase 2. Verified locally via the Preview tool (screenshots, console
+clean) before deployment - see chat history for confirmation both tabs
+render correctly with real data.

@@ -13,8 +13,8 @@ gets to a market that is very hard to beat.
 monitoring, retraining pipeline with a promote-if-better guard, Kubernetes
 manifests, the Airflow DAG, and MinIO artifact storage are all verified
 end-to-end on every push (four green CI jobs: `lint`, `test`, `docker`,
-`airflow`). Phase 3 (Streamlit demo on Hugging Face Spaces, architecture
-diagram) not started yet.
+`airflow`). Phase 3 in progress: Streamlit demo built (see below);
+architecture diagram not started yet.
 
 ## Result
 
@@ -101,6 +101,20 @@ docker compose -f docker-compose.airflow.yml up
 Verified end-to-end by the `airflow` job in CI - not just that the DAG
 parses, but that a real trigger runs all five tasks to completion. See
 ADR-018 for the `airflow standalone` (single-container) choice and why.
+
+## Demo
+
+`streamlit_app/` is a standalone dashboard (browse historical predictions vs
+bookmaker odds vs actual results, plus the full model-vs-bookmaker
+comparison from the Result table above). It ships with pre-computed
+out-of-fold predictions rather than a live model - see ADR-020 for why. Run
+locally:
+
+```bash
+cd streamlit_app
+pip install -r requirements.txt
+streamlit run app.py
+```
 
 ## Tests
 
