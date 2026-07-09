@@ -1,0 +1,122 @@
+<svg viewBox="0 0 1300 640" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system, 'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6e6e73"/>
+    </marker>
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0071e3"/>
+    </marker>
+  </defs>
+
+  <rect width="1300" height="640" fill="#f5f5f7"/>
+
+  <text x="30" y="36" font-size="20" font-weight="700" fill="#1c1c1e">Football Outcome Predictor — Architecture</text>
+  <text x="30" y="58" font-size="12" fill="#6e6e73">Data ingestion through serving and orchestration — every arrow here is verified by CI, not just claimed (see README)</text>
+
+  <!-- ============ MAIN PIPELINE ROW ============ -->
+  <!-- 1. Data source -->
+  <rect x="20" y="100" width="150" height="60" rx="10" fill="#ffffff" stroke="#d1d1d6"/>
+  <text x="95" y="125" font-size="12" font-weight="600" text-anchor="middle" fill="#1c1c1e">football-data.co.uk</text>
+  <text x="95" y="142" font-size="10" text-anchor="middle" fill="#6e6e73">16 seasons, CSV</text>
+
+  <path d="M170,130 H200" stroke="#6e6e73" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- 2. ingest -->
+  <rect x="200" y="100" width="110" height="60" rx="10" fill="#ffffff" stroke="#d1d1d6"/>
+  <text x="255" y="125" font-size="12" font-weight="600" text-anchor="middle" fill="#1c1c1e">ingest.py</text>
+  <text x="255" y="142" font-size="10" text-anchor="middle" fill="#6e6e73">DVC-tracked raw</text>
+
+  <path d="M310,130 H340" stroke="#6e6e73" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- 3. validate -->
+  <rect x="340" y="100" width="110" height="60" rx="10" fill="#ffffff" stroke="#d1d1d6"/>
+  <text x="395" y="125" font-size="12" font-weight="600" text-anchor="middle" fill="#1c1c1e">validate.py</text>
+  <text x="395" y="142" font-size="10" text-anchor="middle" fill="#6e6e73">schema, anomalies</text>
+
+  <path d="M450,130 H480" stroke="#6e6e73" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- 4. features -->
+  <rect x="480" y="100" width="140" height="60" rx="10" fill="#ffffff" stroke="#d1d1d6"/>
+  <text x="550" y="125" font-size="12" font-weight="600" text-anchor="middle" fill="#1c1c1e">build_features.py</text>
+  <text x="550" y="142" font-size="10" text-anchor="middle" fill="#6e6e73">leak-free, as-of</text>
+
+  <path d="M620,130 H650" stroke="#6e6e73" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- 5. train -->
+  <rect x="650" y="100" width="170" height="60" rx="10" fill="#ffffff" stroke="#d1d1d6"/>
+  <text x="735" y="121" font-size="12" font-weight="600" text-anchor="middle" fill="#1c1c1e">train.py</text>
+  <text x="735" y="137" font-size="10" text-anchor="middle" fill="#6e6e73">walk-forward + nested tuning</text>
+  <text x="735" y="151" font-size="10" text-anchor="middle" fill="#6e6e73">4 models vs bookmaker</text>
+
+  <path d="M820,130 H850" stroke="#6e6e73" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- 6. Registry -->
+  <rect x="850" y="100" width="180" height="60" rx="10" fill="#ffffff" stroke="#d1d1d6"/>
+  <text x="940" y="121" font-size="12" font-weight="600" text-anchor="middle" fill="#1c1c1e">MLflow Registry</text>
+  <text x="940" y="137" font-size="10" text-anchor="middle" fill="#6e6e73">"production" alias</text>
+  <text x="940" y="151" font-size="10" text-anchor="middle" fill="#6e6e73">promote only if better</text>
+
+  <path d="M1030,130 H1060" stroke="#6e6e73" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- 7. FastAPI -->
+  <rect x="1060" y="100" width="220" height="60" rx="10" fill="#ffffff" stroke="#d1d1d6"/>
+  <text x="1170" y="121" font-size="12" font-weight="600" text-anchor="middle" fill="#1c1c1e">FastAPI</text>
+  <text x="1170" y="137" font-size="10" text-anchor="middle" fill="#6e6e73">/predict · /health</text>
+  <text x="1170" y="151" font-size="10" text-anchor="middle" fill="#6e6e73">Docker container</text>
+
+  <!-- ============ SUPPORT LAYER: MLflow server + MinIO ============ -->
+  <path d="M735,160 V210 H940 V160" stroke="#0071e3" stroke-width="1.5" fill="none"/>
+  <path d="M940,210 V240" stroke="#0071e3" stroke-width="1.5" marker-end="url(#arrow-accent)"/>
+
+  <rect x="770" y="240" width="340" height="55" rx="10" fill="#eef6ff" stroke="#0071e3"/>
+  <text x="940" y="262" font-size="12" font-weight="600" text-anchor="middle" fill="#1c1c1e">MLflow Server</text>
+  <text x="940" y="278" font-size="10" text-anchor="middle" fill="#6e6e73">tracking + proxied artifact serving (mlflow-artifacts:/)</text>
+
+  <path d="M940,295 V320" stroke="#0071e3" stroke-width="1.5" marker-end="url(#arrow-accent)"/>
+  <rect x="820" y="320" width="240" height="50" rx="10" fill="#eef6ff" stroke="#0071e3"/>
+  <text x="940" y="340" font-size="12" font-weight="600" text-anchor="middle" fill="#1c1c1e">MinIO</text>
+  <text x="940" y="356" font-size="10" text-anchor="middle" fill="#6e6e73">S3-compatible artifact storage</text>
+
+  <!-- FastAPI -> MLflow server (loads production model via HTTP proxy) -->
+  <path d="M1170,160 V200 Q1170,240 1110,255" stroke="#0071e3" stroke-width="1.5" fill="none" marker-end="url(#arrow-accent)"/>
+  <text x="1175" y="215" font-size="9" fill="#0071e3">loads model</text>
+  <text x="1175" y="227" font-size="9" fill="#0071e3">via HTTP proxy</text>
+
+  <!-- ============ Docker / K8s badge under FastAPI ============ -->
+  <rect x="1060" y="320" width="220" height="50" rx="10" fill="#fff8e6" stroke="#ffd60a"/>
+  <text x="1170" y="340" font-size="12" font-weight="600" text-anchor="middle" fill="#1c1c1e">Docker Compose / K8s</text>
+  <text x="1170" y="356" font-size="10" text-anchor="middle" fill="#6e6e73">deployment.yaml, service.yaml</text>
+  <path d="M1260,160 V320" stroke="#b38600" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ============ Evidently badge under validate/features ============ -->
+  <rect x="395" y="240" width="225" height="50" rx="10" fill="#fff8e6" stroke="#ffd60a"/>
+  <text x="507" y="260" font-size="12" font-weight="600" text-anchor="middle" fill="#1c1c1e">Evidently</text>
+  <text x="507" y="276" font-size="10" text-anchor="middle" fill="#6e6e73">drift report: recent seasons vs history</text>
+  <path d="M480,160 Q480,200 507,240" stroke="#b38600" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- ============ AIRFLOW ORCHESTRATION WRAP ============ -->
+  <rect x="185" y="420" width="780" height="90" rx="12" fill="none" stroke="#ff9f0a" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="205" y="443" font-size="12" font-weight="700" fill="#b36200">Airflow DAG — retrain_pipeline (weekly schedule)</text>
+  <text x="205" y="460" font-size="10" fill="#6e6e73">ingest_data → validate_data → train_models → evaluate_models → promote_if_better</text>
+  <text x="205" y="476" font-size="10" fill="#6e6e73">verified in CI: a real trigger runs all 5 tasks to completion, not just "the DAG parses"</text>
+
+  <path d="M255,160 V420" stroke="#ff9f0a" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <path d="M940,370 V550 H110 V495" stroke="#ff9f0a" stroke-width="1.5" stroke-dasharray="4,3" fill="none"/>
+  <path d="M110,495 H185" stroke="#ff9f0a" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <text x="20" y="563" font-size="9" fill="#b36200">loop: promote_if_better feeds next week's ingest_data</text>
+
+  <!-- ============ DEMO (separate, pre-computed) ============ -->
+  <rect x="1040" y="420" width="240" height="90" rx="12" fill="#ffffff" stroke="#d1d1d6"/>
+  <text x="1160" y="443" font-size="12" font-weight="600" text-anchor="middle" fill="#1c1c1e">frontend/ demo</text>
+  <text x="1160" y="460" font-size="10" text-anchor="middle" fill="#6e6e73">static HTML/CSS/JS</text>
+  <text x="1160" y="475" font-size="10" text-anchor="middle" fill="#6e6e73">Hugging Face Spaces</text>
+  <text x="1160" y="493" font-size="9" text-anchor="middle" fill="#aeaeb2">pre-computed export only —</text>
+  <text x="1160" y="505" font-size="9" text-anchor="middle" fill="#aeaeb2">no live model dependency</text>
+
+  <path d="M1170,370 Q1166,396 1160,420" stroke="#aeaeb2" stroke-width="1.5" stroke-dasharray="3,3" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- ============ CI/CD strip ============ -->
+  <rect x="20" y="570" width="1260" height="50" rx="10" fill="#f0faf4" stroke="#30d158"/>
+  <text x="650" y="591" font-size="12" font-weight="700" text-anchor="middle" fill="#1a8a40">GitHub Actions CI — every push</text>
+  <text x="650" y="608" font-size="10" text-anchor="middle" fill="#1a8a40">lint (black · ruff) · test (fresh pipeline run + 18 pytest) · docker (build, MinIO+MLflow, register, /health, /predict) · airflow (real DAG trigger)</text>
+</svg>

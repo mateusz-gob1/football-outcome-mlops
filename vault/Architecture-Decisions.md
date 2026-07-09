@@ -602,3 +602,41 @@ stored token was ever tried. Fixed by adding an empty `helper =` entry
 immediately before `helper = store` in the repo's local `.git/config`,
 which resets the accumulated helper list at that point - only `store` was
 active afterward, and the push authenticated without any GUI prompt.
+
+---
+
+## ADR-021: Architecture diagram as hand-written SVG, not a generated PNG
+
+**Decision:** `docs/architecture.svg`, referenced from the README's new
+"Architecture" section. Hand-authored markup, not exported from a diagramming
+tool.
+
+**Why:** the plan named `docs/architecture.png`, but SVG renders natively on
+GitHub, scales without pixelation at any zoom level, and is a few KB of text
+instead of a raster blob - no real downside for a static box-and-arrow
+diagram. Neither prior project (`football-agent`, `financial-doc-agent`) has
+an actual architecture diagram to match conventions against (just a logo and
+screenshots for one, a text-only vault for the other), so there was no
+existing format to stay consistent with - free choice, and SVG was the
+better default.
+
+**Content:** one horizontal pipeline (ingest → validate → features → train →
+MLflow Registry → FastAPI), a support layer underneath for MLflow Server +
+MinIO (the proxied-artifact design from ADR-011/014/019), small badges for
+Evidently and Docker/K8s, a dashed box wrapping the same pipeline for the
+Airflow DAG with a loop-back arrow to represent the weekly retrain cycle, and
+the demo dashboard drawn with a dotted connector to make its one-way,
+pre-computed relationship to the rest of the stack visually explicit (same
+distinction as ADR-020, restated visually).
+
+**Verification note:** built and checked without ever opening the file in an
+image viewer - the Preview tool's screenshot function was unreliable in this
+session (timed out repeatedly), so correctness was verified programmatically
+instead: fetched the SVG into a real browser DOM via `preview_eval`, then
+used `getBBox()`/`getPointAtLength()` to check every text label sat fully
+inside its box and no connector line's actual stroke path crossed through
+any text run. This caught two real bugs a glance might have missed - a
+loop-back arrow that cut straight through three lines of the Airflow box's
+own text, and a Docker/K8s connector arrow that started from empty space
+instead of the FastAPI box - before a manual screenshot (once the tool
+recovered) confirmed the fixed layout visually.

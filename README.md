@@ -12,12 +12,22 @@ Model quality is benchmarked against a bookmaker consensus baseline, not just
 against random guessing — the goal is to know honestly how close the model
 gets to a market that is very hard to beat.
 
-**Status: Phase 1 (MVP) complete. Phase 2 complete.** Evidently drift
-monitoring, retraining pipeline with a promote-if-better guard, Kubernetes
-manifests, the Airflow DAG, and MinIO artifact storage are all verified
-end-to-end on every push (four green CI jobs: `lint`, `test`, `docker`,
-`airflow`). Phase 3 in progress: static demo dashboard built (see below);
-architecture diagram not started yet.
+**Status: Phase 1 (MVP) complete. Phase 2 complete. Phase 3 complete.**
+Evidently drift monitoring, retraining pipeline with a promote-if-better
+guard, Kubernetes manifests, the Airflow DAG, and MinIO artifact storage are
+all verified end-to-end on every push (four green CI jobs: `lint`, `test`,
+`docker`, `airflow`). The static demo dashboard is live (see below).
+
+## Architecture
+
+![Architecture diagram](docs/architecture.svg)
+
+Left to right: raw data → validation → leak-free feature engineering →
+walk-forward training → MLflow Registry → FastAPI serving. The dashed box is
+the Airflow DAG that wraps the same pipeline on a weekly schedule and loops
+promote-if-better back into next week's ingest. The demo dashboard sits
+outside this loop deliberately — it ships pre-computed exports, not a live
+model (see ADR-020).
 
 ## Result
 
