@@ -583,4 +583,22 @@ better option once the constraint surfaced.
 Space - `README.md` carries the required HF YAML frontmatter, `sdk: static`),
 independent of the Docker/K8s/Airflow/MinIO stack built in Phase 2. Verified
 locally via the Preview tool (screenshots, console clean, season/team
-filtering exercised) before deployment.
+filtering exercised) before deployment. Live at
+https://matigob-football-outcome-predictor.static.hf.space, pushed via
+`git subtree push --prefix=frontend hf main` (a plain push failed with
+"fetch first" since HF auto-initializes new Spaces with placeholder template
+files; force-pushed a `git subtree split` branch over that placeholder,
+confirmed with Mateusz first since it's a destructive, external-facing
+operation).
+
+**Windows-specific credential gotcha, for the record:** the first push
+attempt hung on a Git Credential Manager GUI popup for huggingface.co that
+a non-interactive session can't answer. Cause: both the system-level
+`credential.helper=manager` (GCM) and a locally-configured
+`credential.helper=store` were active simultaneously - git accumulates
+credential helpers across config levels rather than the local one replacing
+the system one, so GCM ran first and blocked on its own prompt before the
+stored token was ever tried. Fixed by adding an empty `helper =` entry
+immediately before `helper = store` in the repo's local `.git/config`,
+which resets the accumulated helper list at that point - only `store` was
+active afterward, and the push authenticated without any GUI prompt.

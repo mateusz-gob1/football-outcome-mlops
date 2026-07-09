@@ -124,11 +124,14 @@ checked by a machine on every push, not asserted in prose.
 
 ## Demo
 
+**Live: [matigob-football-outcome-predictor.static.hf.space](https://matigob-football-outcome-predictor.static.hf.space)**
+
 `frontend/` is a standalone static dashboard (browse historical predictions
 vs bookmaker odds vs actual results, plus the full model-vs-bookmaker
 comparison from the Result table above) - plain HTML/CSS/JS, no server, no
 live model. It ships with pre-computed out-of-fold predictions rather than a
-live model - see ADR-020 for why. Run locally:
+live model - see ADR-020 for why. Deployed to Hugging Face Spaces (Static
+SDK) via `git subtree push --prefix=frontend`. Run locally:
 
 ```bash
 cd frontend
