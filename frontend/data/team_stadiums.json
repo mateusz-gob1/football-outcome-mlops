@@ -1,0 +1,338 @@
+{
+  "Arsenal": {
+    "name": "Emirates Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/v68ocs1710188799.jpg",
+    "location": "Holloway, London, England",
+    "capacity": "60338",
+    "nickname": "The Gunners",
+    "founded": "1892"
+  },
+  "Aston Villa": {
+    "name": "Villa Park",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/knquqa1709729076.jpg",
+    "location": "Aston, Birmingham",
+    "capacity": "42785",
+    "nickname": "The Villa",
+    "founded": "1874"
+  },
+  "Birmingham": {
+    "name": "St Andrew's @ Knighthead Park",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/rnox2m1712515280.jpg",
+    "location": "Bordesley, Birmingham",
+    "capacity": "29409",
+    "nickname": null,
+    "founded": "1875"
+  },
+  "Blackburn": {
+    "name": "Ewood Park",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/d1z3vy1732226060.jpg",
+    "location": "Blackburn, Lancashire",
+    "capacity": "31367",
+    "nickname": "The Rovers",
+    "founded": "1875"
+  },
+  "Blackpool": {
+    "name": "Bloomfield Road",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/3nxuyg1731943874.jpg",
+    "location": "Seasiders Way, Blackpool, England",
+    "capacity": "17338",
+    "nickname": "The Seasiders",
+    "founded": "1887"
+  },
+  "Bolton": {
+    "name": "Toughsheet Community Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/y3zi8m1718381344.jpg",
+    "location": "Bolton, England",
+    "capacity": "28723",
+    "nickname": "The Trotters",
+    "founded": "1874"
+  },
+  "Bournemouth": {
+    "name": "Vitality Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/qj663s1718531407.jpg",
+    "location": "Bournemouth, England",
+    "capacity": "11464",
+    "nickname": "The Cherries",
+    "founded": "1890"
+  },
+  "Brentford": {
+    "name": "Brentford Community Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/ioshgf1719137367.jpg",
+    "location": "Lionel Road, Brentford",
+    "capacity": "17250",
+    "nickname": "The Bees",
+    "founded": "1889"
+  },
+  "Brighton": {
+    "name": "American Express Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/nmfgre1719137917.jpg",
+    "location": "Brighton and Hove, East Sussex, England",
+    "capacity": "31876",
+    "nickname": "The Seagulls",
+    "founded": "1901"
+  },
+  "Burnley": {
+    "name": "Turf Moor",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/tyk3s81732224411.jpg",
+    "location": "Burnley, Lancashire",
+    "capacity": "21401",
+    "nickname": "The Clarets",
+    "founded": "1882"
+  },
+  "Cardiff": {
+    "name": "Cardiff City Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/zinwcl1732222706.jpg",
+    "location": "Cardiff, Wales",
+    "capacity": "33280",
+    "nickname": null,
+    "founded": "1899"
+  },
+  "Chelsea": {
+    "name": "Stamford Bridge",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/pwaaud1719339264.jpg",
+    "location": "Fulham, London",
+    "capacity": "41798",
+    "nickname": "The Blues",
+    "founded": "1905"
+  },
+  "Coventry": {
+    "name": "The Coventry Building Society Arena",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/z3v66n1712515677.jpg",
+    "location": "Rowleys Green, Coventry",
+    "capacity": "32609",
+    "nickname": "The Sky Blues",
+    "founded": "1883"
+  },
+  "Crystal Palace": {
+    "name": "Selhurst Park",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/4mcih01718380266.jpg",
+    "location": "South Norwood, London",
+    "capacity": "26255",
+    "nickname": "The Eagles",
+    "founded": "1905"
+  },
+  "Everton": {
+    "name": "Hill Dickinson Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/ylr5tj1751396224.jpg",
+    "location": "Liverpool, England",
+    "capacity": "52888",
+    "nickname": "The Toffees",
+    "founded": "1878"
+  },
+  "Fulham": {
+    "name": "Craven Cottage",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/eg5ezn1719340300.jpg",
+    "location": "Fulham, London, England",
+    "capacity": "25700",
+    "nickname": "The Cottagers",
+    "founded": "1879"
+  },
+  "Middlesbrough": {
+    "name": "Riverside Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/6s20501732190887.jpg",
+    "location": "Middlesbrough",
+    "capacity": "34742",
+    "nickname": null,
+    "founded": "1876"
+  },
+  "Newcastle": {
+    "name": "St James Park",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/7eeo4r1719753325.jpg",
+    "location": "Newcastle upon Tyne",
+    "capacity": "52305",
+    "nickname": "The Magpies",
+    "founded": "1892"
+  },
+  "Norwich": {
+    "name": "Carrow Road",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/p8t9xd1732118105.jpg",
+    "location": "Norwich",
+    "capacity": "27150",
+    "nickname": "The Canaries",
+    "founded": "1902"
+  },
+  "Nott'm Forest": {
+    "name": "Motorpoint Arena Nottingham",
+    "image": "https://r2.thesportsdb.com/images/media/venue/thumb/7mleum1743257424.jpg",
+    "location": "Nottingham, England",
+    "capacity": "10000",
+    "nickname": null,
+    "founded": "2025"
+  },
+  "QPR": {
+    "name": "MATRADE Loftus Road",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/vtiqwa1732046949.jpg",
+    "location": "Shepherd's Bush, London",
+    "capacity": "18439",
+    "nickname": "The R\u2019s",
+    "founded": "1882"
+  },
+  "Reading": {
+    "name": "Select Car Leasing Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/ksvpt41710332477.jpg",
+    "location": "Reading, England",
+    "capacity": "24161",
+    "nickname": "The Royals",
+    "founded": "1871"
+  },
+  "Sheffield United": {
+    "name": "Bramall Lane",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/vfm0z21731950008.jpg",
+    "location": "Highfield, Sheffield",
+    "capacity": "32050",
+    "nickname": "The Blades",
+    "founded": "1889"
+  },
+  "Southampton": {
+    "name": "St. Mary's Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/npmi6d1724570848.jpg",
+    "location": "Southampton",
+    "capacity": "32384",
+    "nickname": "The Saints",
+    "founded": "1885"
+  },
+  "Stoke": {
+    "name": "bet365 Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/89nqwg1731855532.jpg",
+    "location": "Stoke-on-Trent",
+    "capacity": "27743",
+    "nickname": "The Potters",
+    "founded": "1863"
+  },
+  "Sunderland": {
+    "name": "Stadium of Light",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/f2cd4p1731851042.jpg",
+    "location": "Monkwearmouth, Sunderland",
+    "capacity": "49000",
+    "nickname": "The Black Cats",
+    "founded": "1879"
+  },
+  "Swansea": {
+    "name": "Swansea.com Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/s5ttmf1731843814.jpg",
+    "location": "Swansea",
+    "capacity": "21088",
+    "nickname": null,
+    "founded": "1912"
+  },
+  "Tottenham": {
+    "name": "Tottenham Hotspur Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/6enmx61718282768.jpg",
+    "location": "Tottenham, London",
+    "capacity": "62850",
+    "nickname": "The Lilywhites",
+    "founded": "1882"
+  },
+  "Watford": {
+    "name": "Vicarage Road",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/l38stp1731778250.jpg",
+    "location": "Watford",
+    "capacity": "22220",
+    "nickname": "The Hornets",
+    "founded": "1881"
+  },
+  "West Brom": {
+    "name": "The Hawthorns",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/t8jtz21719136624.jpg",
+    "location": "West Bromwich",
+    "capacity": "26688",
+    "nickname": "The Baggies",
+    "founded": "1878"
+  },
+  "West Ham": {
+    "name": "London Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/vsazp01710668969.jpg",
+    "location": "London, England",
+    "capacity": "60000",
+    "nickname": "The Irons",
+    "founded": "1895"
+  },
+  "Luton": {
+    "name": "Kenilworth Road",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/fm2mic1732194117.jpg",
+    "location": "Kenilworth Road, Luton",
+    "capacity": "12056",
+    "nickname": "The Hatters",
+    "founded": "1885"
+  },
+  "Man City": {
+    "name": "Etihad Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/x6hba91719340736.jpg",
+    "location": "Etihad Campus, Manchester",
+    "capacity": "62000",
+    "nickname": "The City",
+    "founded": "1880"
+  },
+  "Man United": {
+    "name": "Old Trafford",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/bcq9no1719754015.jpg",
+    "location": "Sir Matt Busby Way, Old Trafford, England",
+    "capacity": "74310",
+    "nickname": "The Red Devils",
+    "founded": "1878"
+  },
+  "Wigan": {
+    "name": "The Brick Community Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/iuyslk1734097017.jpg",
+    "location": "Wigan",
+    "capacity": "25100",
+    "nickname": "The Latics",
+    "founded": "1932"
+  },
+  "Wolves": {
+    "name": "Molineux Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/nsyhfo1719752379.jpg",
+    "location": "Waterloo Road, Wolverhampton, England",
+    "capacity": "31750",
+    "nickname": "The Wolves",
+    "founded": "1877"
+  },
+  "Huddersfield": {
+    "name": "Accu Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/siiw8j1734013636.jpg",
+    "location": "Stadium Way, Huddersfield, West Yorkshire",
+    "capacity": "24121",
+    "nickname": null,
+    "founded": "1908"
+  },
+  "Hull": {
+    "name": "The MKM Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/2gzwc21731789135.jpg",
+    "location": "Hull, East Riding of Yorkshire",
+    "capacity": "25586",
+    "nickname": null,
+    "founded": "1904"
+  },
+  "Ipswich": {
+    "name": "Portman Road",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/pmxb541719340113.jpg",
+    "location": "Ipswich",
+    "capacity": "29673",
+    "nickname": null,
+    "founded": "1878"
+  },
+  "Leeds": {
+    "name": "Elland Road",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/kiux2d1732196427.jpg",
+    "location": "Beeston, Leeds, UK",
+    "capacity": "37792",
+    "nickname": "The Whites",
+    "founded": "1919"
+  },
+  "Leicester": {
+    "name": "King Power Stadium",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/c8lnyf1719339900.jpg",
+    "location": "Leicester",
+    "capacity": "32262",
+    "nickname": "The Foxes",
+    "founded": "1884"
+  },
+  "Liverpool": {
+    "name": "Anfield",
+    "image": "https://r2.thesportsdb.com/images/media/venue/fanart/j57mfh1708720388.jpg",
+    "location": "Anfield, Liverpool, England",
+    "capacity": "55000",
+    "nickname": "The Reds",
+    "founded": "1892"
+  }
+}

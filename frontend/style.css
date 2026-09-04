@@ -1,62 +1,114 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:        #f5f5f7;
-  --surface:   #ffffff;
-  --surface-2: #f9f9fb;
-  --border:    #e5e5ea;
-  --border-2:  #d1d1d6;
-  --text:      #1c1c1e;
-  --text-2:    #6e6e73;
-  --text-3:    #aeaeb2;
-  --accent:    #0071e3;
-  --positive:  #30d158;
-  --positive-bg: #f0faf4;
-  --negative:  #ff3b30;
-  --negative-bg: #fff5f5;
-  --radius:    12px;
+  --bg:        #0d2a20;
+  --bg-2:      #0a2118;
+  --surface:   rgba(255, 255, 255, 0.055);
+  --surface-2: rgba(255, 255, 255, 0.035);
+  --border:    rgba(255, 255, 255, 0.12);
+  --border-2:  rgba(255, 255, 255, 0.22);
+  --text:      #eaf3ee;
+  --text-2:    #a2c2b1;
+  --text-3:    #718f7e;
+  --accent:    #9fd873;
+  --positive:  #4ade80;
+  --positive-bg: rgba(74, 222, 128, 0.14);
+  --negative:  #f87171;
+  --negative-bg: rgba(248, 113, 113, 0.14);
+  --radius:    14px;
   --nav-h:     56px;
+  --cut:       14px;
 }
 
-html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Geist', -apple-system, sans-serif; font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+html {
+  background: var(--bg-2);
+}
+
+html, body {
+  min-height: 100%;
+  color: var(--text);
+  font-family: 'Space Grotesk', -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background:
+    radial-gradient(1100px 600px at 15% -10%, rgba(159, 216, 115, 0.10), transparent 60%),
+    linear-gradient(160deg, #103527 0%, #0d2a20 45%, #081a13 100%);
+  background-attachment: fixed;
+  transition: background 0.35s ease;
+}
+
+/* While a team page is open, the whole page (not just the header banner)
+   washes toward that club's own color - set via --team-accent on body in
+   renderTeamPage(), not just the small header box. */
+body.team-theme {
+  /* Not fixed, unlike the default body background above: this needs to be
+     positioned relative to the whole (often long) page, not glued to one
+     viewport-height's worth - fixed here left a visible seam where the
+     glow simply stopped as soon as content scrolled past it. */
+  /* The linear layer (not just the radial glow) carries most of the color
+     here - a radial alone leaves far corners of a wide viewport almost
+     untinted, since its falloff is circular, not full-width. */
+  background:
+    radial-gradient(1400px 1000px at 18% -5%, color-mix(in srgb, var(--team-accent) 50%, transparent), transparent 55%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--team-accent) 42%, #0d2a20) 0%,
+      color-mix(in srgb, var(--team-accent) 22%, #0d2a20) 40%,
+      color-mix(in srgb, var(--team-accent) 8%, #0d2a20) 70%,
+      #081a13 100%
+    );
+  background-attachment: scroll;
+  background-repeat: no-repeat;
+}
 
 .app { display: flex; flex-direction: column; min-height: 100vh; }
 
-/* Top nav */
-.topnav {
-  min-height: var(--nav-h);
-  background: rgba(255,255,255,0.85);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 24px;
-  flex-wrap: wrap;
-  gap: 10px;
-  position: sticky; top: 0; z-index: 10;
+/* Glass card base: reused by every panel via a shared mixin-like pattern */
+.kpi-card,
+.sidebar-card,
+.match-card,
+.chart-card,
+.table-wrap,
+.empty-state {
+  background: var(--surface);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--border);
 }
 
-.brand { display: flex; align-items: center; gap: 10px; }
-.brand-mark {
-  width: 32px; height: 32px;
-  background: var(--text);
-  color: #fff;
-  font-size: 15px;
-  border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
+/* Top nav - deliberately no background/blur/border of its own: it should
+   read as the top of the page, not a separate bar sitting on top of it. */
+.topnav {
+  min-height: var(--nav-h);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px 10px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.brand { display: flex; align-items: center; gap: 20px; }
+.brand-bars {
+  display: flex; align-items: flex-end; gap: 5px;
+  height: 50px;
   flex-shrink: 0;
 }
-.brand-name { display: block; font-size: 14px; font-weight: 600; line-height: 1.3; }
-.brand-sub  { display: block; font-size: 11px; color: var(--text-2); }
+.brand-bars span { display: block; width: 9px; border-radius: 2px; }
+.brand-name { display: block; font-size: 27px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; line-height: 1.25; color: var(--text); }
+.brand-sub  { display: block; font-size: 11.5px; color: var(--text-2); }
 
 .topnav-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
 .demo-pill {
   padding: 4px 10px;
-  background: #fff8e6;
-  border: 1px solid #ffd60a44;
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.3);
   border-radius: 20px;
   font-size: 11px; font-weight: 500;
-  color: #b38600;
+  color: #facc15;
 }
 
 .repo-link { font-size: 12px; color: var(--accent); text-decoration: none; font-weight: 500; }
@@ -75,13 +127,13 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   cursor: pointer; border-bottom: 2px solid transparent;
 }
 .tab-btn:hover { color: var(--text); }
-.tab-btn.active { color: var(--text); border-bottom-color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
 
 .page-title { margin-bottom: 22px; }
-.page-title h1 { font-size: 21px; font-weight: 600; letter-spacing: -0.3px; }
+.page-title h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; color: var(--text); }
 .page-title p  { color: var(--text-2); margin-top: 5px; font-size: 13px; max-width: 680px; }
 
 .note { font-size: 12px; color: var(--text-2); margin: 10px 0 24px; }
@@ -92,8 +144,9 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .filters select {
   font-family: inherit; font-size: 13px; color: var(--text);
   padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border-2);
-  background: var(--surface); min-width: 160px;
+  background: var(--surface-2); min-width: 160px;
 }
+.filters select option { background: #0d2a20; color: var(--text); }
 
 /* KPI cards */
 .overview-kpis {
@@ -103,34 +156,305 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   margin-bottom: 24px;
 }
 .kpi-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
   padding: 16px 18px;
 }
 .kpi-label { font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
-.kpi-value { font-size: 24px; font-weight: 600; font-family: 'Geist Mono', monospace; letter-spacing: -1px; }
+.kpi-card-center { display: flex; align-items: center; justify-content: center; text-align: center; }
+.kpi-value { font-size: 24px; font-weight: 600; font-family: 'Geist Mono', monospace; letter-spacing: -1px; color: var(--text); }
+
+.kpi-card-accent {
+  background: linear-gradient(135deg, var(--accent), #6fae4c);
+  border-color: transparent;
+}
+.kpi-card-accent .kpi-label { color: rgba(10, 33, 24, 0.75); }
+.kpi-card-accent .kpi-value { color: #0a2118; }
 
 /* Table */
 .table-wrap {
-  background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow-x: auto;
   margin-bottom: 8px;
 }
 table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
 th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); }
-th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-3); font-weight: 600; background: var(--surface-2); }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-3); font-weight: 600; background: rgba(255, 255, 255, 0.03); }
 tbody tr:last-child td { border-bottom: none; }
-tbody tr:hover { background: var(--surface-2); }
+tbody tr:hover { background: rgba(255, 255, 255, 0.04); }
 
-.pick-Home { color: #1a8a40; }
+.pick-Home { color: var(--positive); }
 .pick-Draw { color: var(--text-2); }
-.pick-Away { color: var(--accent); }
+.pick-Away { color: #7dd3fc; }
 
 .mark-correct { color: var(--positive); font-weight: 600; }
 .mark-wrong { color: var(--negative); }
+
+/* Next Matchday layout (fixtures + sidebar table) */
+.upcoming-layout {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+.upcoming-layout .sidebar-stack { order: 1; }
+.upcoming-layout .upcoming-main { order: 2; }
+@media (max-width: 900px) {
+  .upcoming-layout { grid-template-columns: 1fr; }
+  .upcoming-layout .sidebar-stack { order: 2; }
+  .upcoming-layout .upcoming-main { order: 1; }
+}
+
+.sidebar-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.sidebar-card {
+  border-radius: var(--radius);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
+  padding: 16px 18px;
+}
+.sidebar-card h2 { font-size: 14px; font-weight: 600; margin-bottom: 2px; color: var(--text); }
+.sidebar-card .note { margin-bottom: 10px; }
+.sidebar-card table { font-size: 12px; }
+.sidebar-card th, .sidebar-card td { padding: 6px 8px; white-space: nowrap; }
+.sidebar-card .team-badge, .sidebar-card .team-initials { width: 16px; height: 16px; font-size: 7px; }
+.sidebar-card .team-link { gap: 5px; }
+.sidebar-card canvas { max-height: 220px; margin: 4px auto 0; }
+
+.table-row-ucl { box-shadow: inset 3px 0 0 var(--positive); }
+.table-row-releg { box-shadow: inset 3px 0 0 var(--negative); }
+
+.table-legend { display: flex; gap: 14px; margin-top: 10px; font-size: 11px; color: var(--text-2); flex-wrap: wrap; }
+.legend-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
+.legend-ucl { background: var(--positive); }
+.legend-releg { background: var(--negative); }
+
+/* Next Matchday cards */
+.upcoming-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+.match-card {
+  border-radius: var(--radius);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.match-card:hover { border-color: var(--border-2); background: rgba(255, 255, 255, 0.08); }
+.match-date { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-3); font-weight: 600; }
+.match-teams { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; flex-wrap: wrap; color: var(--text); }
+.match-teams .vs { font-size: 11px; font-weight: 500; color: var(--text-3); text-transform: uppercase; }
+
+.team-crest-wrap { display: inline-flex; }
+.team-badge { width: 22px; height: 22px; object-fit: contain; }
+.team-initials {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 9px; font-weight: 700; font-family: 'Geist Mono', monospace;
+  flex-shrink: 0;
+}
+
+.form-row { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 4px; }
+.form-dots { display: flex; gap: 3px; }
+.form-dots-right { flex-direction: row-reverse; }
+.form-dot {
+  width: 16px; height: 16px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 700; color: #06150f;
+  font-family: 'Geist Mono', monospace;
+}
+.form-dot-w { background: var(--positive); }
+.form-dot-d { background: var(--text-3); color: #eaf3ee; }
+.form-dot-l { background: var(--negative); color: #2a0a0a; }
+
+.h2h-line { margin-top: 8px; color: var(--text-2); }
+
+.form-extreme {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: 10px 0; border-top: 1px solid var(--border);
+}
+.form-extreme:first-child { border-top: none; padding-top: 0; }
+.form-extreme-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-3); font-weight: 600; }
+.form-extreme-hot .form-extreme-label { color: var(--positive); }
+.form-extreme-cold .form-extreme-label { color: var(--negative); }
+
+.model-rows { display: flex; flex-direction: column; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.model-row { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+.model-row-top { display: flex; align-items: center; justify-content: space-between; }
+.model-name { color: var(--text-2); }
+.model-pick { font-weight: 600; font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--text); }
+
+.prob-bar { display: flex; height: 5px; border-radius: 3px; overflow: hidden; background: rgba(255, 255, 255, 0.08); }
+.prob-seg { height: 100%; }
+
+.bookmaker-row { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--text-2); }
+.bookmaker-label { color: var(--text-3); }
+.odds-unavailable { color: var(--text-3); font-style: italic; }
+
+.history-note { font-size: 11px; color: #facc15; background: rgba(250, 204, 21, 0.12); border-radius: 8px; padding: 6px 8px; }
+
+.consensus-card { margin-top: 16px; }
+.consensus-card canvas { max-height: 240px; margin-top: 10px; }
+
+.site-footer {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-3);
+  padding: 16px;
+  border-top: 1px solid var(--border);
+}
+.site-footer a { color: var(--text-2); }
+
+/* Clickable team name -> team page (#team/<name>) */
+.team-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  cursor: pointer; border-radius: 6px;
+  color: inherit; text-decoration: none;
+}
+.team-link:hover .team { color: var(--accent); text-decoration: underline; }
+.team-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Team page (#team-page) */
+.back-link {
+  display: inline-block;
+  font-size: 13px; color: var(--accent); text-decoration: none;
+  margin-bottom: 18px;
+}
+.back-link:hover { text-decoration: underline; }
+
+#team-page-content {
+  max-width: 640px;
+  --team-accent: var(--accent);
+  --team-text: #fff;
+  --team-pattern: rgba(255, 255, 255, 0.1);
+}
+
+.stadium-banner {
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 14px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 22px 100%, 0 calc(100% - 22px));
+  border: 1px solid var(--border);
+  box-shadow: 0 14px 34px -14px color-mix(in srgb, var(--team-accent) 55%, transparent);
+}
+.stadium-banner svg { display: block; width: 100%; height: auto; }
+
+.stadium-banner-photo { position: relative; height: 200px; }
+.stadium-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
+.stadium-scrim {
+  position: absolute; inset: 0;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--team-accent) 22%, transparent) 0%,
+    transparent 30%,
+    transparent 55%,
+    rgba(3, 15, 10, 0.88) 100%
+  );
+}
+.stadium-caption {
+  position: absolute; left: 14px; bottom: 10px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+  color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.profile-header {
+  position: relative;
+  overflow: hidden;
+  display: flex; align-items: center; gap: 16px; margin-bottom: 12px;
+  padding: 22px 24px; border-radius: var(--radius);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 22px 100%, 0 calc(100% - 22px));
+  background: var(--team-accent);
+  background: linear-gradient(135deg, var(--team-accent), color-mix(in srgb, var(--team-accent) 65%, #000));
+  color: var(--team-text);
+  box-shadow: 0 10px 30px -10px color-mix(in srgb, var(--team-accent) 65%, transparent);
+}
+.profile-header::before {
+  /* A faint diagonal-stripe "jersey" texture, in a semi-transparent shade
+     of the team's own text color - pure CSS, no image asset needed. */
+  content: "";
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--team-pattern) 0, var(--team-pattern) 12px,
+    transparent 12px, transparent 28px
+  );
+  pointer-events: none;
+}
+.profile-crest-badge {
+  position: relative;
+  flex-shrink: 0;
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: #fff;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+.profile-crest-badge .team-badge, .profile-crest-badge .team-initials { width: 44px; height: 44px; }
+.profile-crest-badge .team-initials { font-size: 15px; }
+.profile-header h2 { position: relative; font-size: 26px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.2; }
+.profile-tagline {
+  position: relative;
+  font-size: 12.5px; font-weight: 500;
+  color: var(--team-text);
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
+.profile-record { font-size: 13px; color: var(--text-2); margin-bottom: 18px; }
+#team-page-content h3 { font-size: 13px; font-weight: 600; margin: 20px 0 8px; color: var(--text); }
+.team-progression-card canvas { max-height: 220px; }
+
+/* Tint the ordinary panels too (table, chart card), not just the header and
+   stat tiles - otherwise most of the page reads as plain dark green with
+   only a couple of colored accents, not "the club's own page". */
+#team-page-content .table-wrap,
+#team-page-content .chart-card {
+  background: color-mix(in srgb, var(--team-accent, transparent) 7%, var(--surface));
+  border-color: color-mix(in srgb, var(--team-accent, transparent) 22%, var(--border));
+}
+
+.profile-next-fixture {
+  display: flex; align-items: center; justify-content: space-between;
+  background: color-mix(in srgb, var(--team-accent, transparent) 10%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--team-accent, transparent) 28%, var(--border));
+  border-radius: 8px; padding: 10px 12px;
+  font-size: 12.5px; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;
+}
+
+.profile-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.profile-stat {
+  background: color-mix(in srgb, var(--team-accent, transparent) 10%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--team-accent, transparent) 28%, var(--border));
+  border-radius: 8px;
+  padding: 8px 6px 6px;
+  text-align: center;
+  border-top: 3px solid var(--team-accent, var(--border));
+}
+.profile-stat .stat-value {
+  display: block; font-size: 17px; font-weight: 700; font-family: 'Geist Mono', monospace;
+  color: var(--team-accent, inherit);
+}
+.profile-stat .stat-label { display: block; font-size: 10px; color: var(--text-2); margin-top: 2px; }
+
+.empty-state {
+  border: 1px dashed var(--border-2);
+  border-radius: var(--radius);
+  padding: 32px;
+  text-align: center;
+  color: var(--text-2);
+  font-size: 13px;
+}
 
 /* Charts */
 .charts-grid {
@@ -140,12 +464,11 @@ tbody tr:hover { background: var(--surface-2); }
   margin-top: 8px;
 }
 .chart-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, var(--cut) 100%, 0 calc(100% - var(--cut)));
   padding: 18px 20px;
 }
-.chart-card h2 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.chart-card h2 { font-size: 14px; font-weight: 600; margin-bottom: 4px; color: var(--text); }
 .chart-card canvas { max-height: 260px; margin-top: 10px; }
 
 @media (max-width: 760px) {

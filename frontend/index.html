@@ -3,24 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Football Outcome Predictor</title>
+  <title>Prem Lab</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
 </head>
 <body>
   <div class="app">
     <header class="topnav">
       <div class="brand">
-        <div class="brand-mark">⚽</div>
+        <span class="brand-bars" aria-hidden="true">
+          <span style="background:#60a5fa; height:22px;"></span>
+          <span style="background:#4ade80; height:36px;"></span>
+          <span style="background:#fbbf24; height:50px;"></span>
+          <span style="background:#c084fc; height:30px;"></span>
+        </span>
         <div>
-          <span class="brand-name">Football Outcome Predictor</span>
-          <span class="brand-sub">Walk-forward validated Random Forest vs bookmaker odds</span>
+          <span class="brand-name">Prem Lab</span>
+          <span class="brand-sub">Premier League predictions from 3 ML models, updated every matchweek</span>
         </div>
       </div>
       <div class="topnav-right">
-        <span class="demo-pill">Static demo &middot; pre-computed results, not a live model</span>
+        <span class="demo-pill">Static demo &middot; pre-computed, not a live server</span>
         <a class="repo-link" href="https://github.com/mateusz-gob1/football-outcome-mlops" target="_blank" rel="noopener">GitHub repo →</a>
       </div>
     </header>
@@ -28,17 +33,119 @@
     <div class="body">
       <main class="main">
         <div class="tabs">
-          <button class="tab-btn active" data-tab="browse">Browse Matches</button>
-          <button class="tab-btn" data-tab="performance">Model Performance</button>
+          <button class="tab-btn active" data-tab="upcoming">Next Matchday</button>
+          <button class="tab-btn" data-tab="browse">Past Predictions</button>
+          <button class="tab-btn" data-tab="performance">Methodology</button>
         </div>
 
-        <section id="browse" class="tab-panel active">
+        <section id="upcoming" class="tab-panel active">
           <div class="page-title">
-            <h1>Historical matches: model vs bookmaker vs actual result</h1>
-            <p>4,125 out-of-fold walk-forward test matches, Premier League 2015/16&ndash;2025/26 &mdash; every prediction here is on a match the model never saw during training.</p>
+            <h1>Predictions for the next Premier League matchday</h1>
+            <p>Three independently trained models, plus their combined ensemble average, predict each fixture from match statistics alone (form, head-to-head, rest days, table position). No bookmaker odds go into any of them. The bookmaker's own pick is shown for reference only, when published.</p>
+          </div>
+
+          <div class="overview-kpis" id="headline-kpis">
+            <div class="kpi-card">
+              <div class="kpi-label">Matches analyzed</div>
+              <div class="kpi-value" id="kpi-total-matches">&ndash;</div>
+            </div>
+            <div class="kpi-card kpi-card-accent">
+              <div class="kpi-label">Best model, all-time</div>
+              <div class="kpi-value" id="kpi-best-model">&ndash;</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">Bookmaker accuracy</div>
+              <div class="kpi-value" id="kpi-book-overall">&ndash;</div>
+            </div>
+            <div class="kpi-card kpi-card-center">
+              <div class="kpi-value" id="kpi-gameweek-count">&ndash;</div>
+            </div>
+          </div>
+
+          <div class="upcoming-layout">
+            <div class="upcoming-main">
+              <div id="upcoming-empty" class="empty-state" hidden>
+                No upcoming fixtures available right now. Check back closer to the next matchday.
+              </div>
+              <div id="upcoming-grid" class="upcoming-grid"></div>
+
+              <div class="chart-card">
+                <h2>How did last gameweek go?</h2>
+                <p class="note" id="last-gameweek-subtitle">Loading&hellip;</p>
+                <div id="last-gameweek-list"></div>
+              </div>
+
+              <div class="chart-card">
+                <h2>Model accuracy</h2>
+                <p class="note">Share of matches where the model's top pick matched the actual result.</p>
+                <canvas id="accuracy-chart"></canvas>
+                <div class="table-wrap">
+                  <table id="accuracy-table">
+                    <thead>
+                      <tr><th>Model</th><th>All-time</th><th id="accuracy-season-header">This season</th></tr>
+                    </thead>
+                    <tbody id="accuracy-table-tbody"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="chart-card consensus-card">
+                <h2>This gameweek: who agrees with whom?</h2>
+                <p class="note">How many fixtures each model calls Home / Draw / Away across the whole matchday.</p>
+                <canvas id="consensus-chart"></canvas>
+              </div>
+
+              <div class="chart-card">
+                <h2>Log-loss by season</h2>
+                <p class="note">Lower is better. How each model's prediction quality has trended season to season (out-of-fold, never trained on that season).</p>
+                <canvas id="logloss-trend-chart"></canvas>
+              </div>
+            </div>
+
+            <aside class="sidebar-stack">
+              <div class="sidebar-card">
+                <h2>Premier League table</h2>
+                <p class="note">Current season, computed from played matches on record.</p>
+                <div class="table-wrap">
+                  <table id="league-table">
+                    <thead>
+                      <tr><th>#</th><th>Team</th><th>P</th><th>GD</th><th>Pts</th></tr>
+                    </thead>
+                    <tbody id="league-table-tbody"></tbody>
+                  </table>
+                </div>
+                <div class="table-legend">
+                  <span><i class="legend-dot legend-ucl"></i> Champions League</span>
+                  <span><i class="legend-dot legend-releg"></i> Relegation</span>
+                </div>
+              </div>
+
+              <div class="sidebar-card">
+                <h2>Form guide</h2>
+                <p class="note">Best and worst points-per-game over each team's last 5 results on record.</p>
+                <div id="form-extremes"></div>
+              </div>
+
+              <div class="sidebar-card">
+                <h2 id="results-split-title">Results this season</h2>
+                <p class="note">Home win / draw / away win split across all played matches.</p>
+                <canvas id="results-split-chart"></canvas>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section id="browse" class="tab-panel">
+          <div class="page-title">
+            <h1>Past predictions: model vs bookmaker vs actual result</h1>
+            <p id="browse-subtitle">Out-of-fold walk-forward test matches. Every prediction here is on a match the model never saw during training.</p>
           </div>
 
           <div class="filters">
+            <label>
+              Model
+              <select id="model-filter"></select>
+            </label>
             <label>
               Season
               <select id="season-filter"></select>
@@ -87,8 +194,8 @@
 
         <section id="performance" class="tab-panel">
           <div class="page-title">
-            <h1>Log-loss &amp; Brier score: model vs bookmaker</h1>
-            <p>Log-loss is the primary metric (a proper scoring rule) &mdash; lower is better. Random guessing over 3 classes scores about 1.10.</p>
+            <h1>Methodology &amp; model performance</h1>
+            <p>How each model is trained and validated (walk-forward, nested tuning), and how the numbers look in detail.</p>
           </div>
 
           <div class="table-wrap">
@@ -101,8 +208,8 @@
           </div>
 
           <div class="page-title" style="margin-top: 32px;">
-            <h1>Is the difference real, or just noise?</h1>
-            <p>Bootstrap 95% CI on (model log-loss &minus; bookmaker log-loss), 2000 resamples. Positive means the model is worse.</p>
+            <h1>For context: comparing to the betting market</h1>
+            <p>The bookmaker's own odds (converted to probabilities) are a famously hard-to-beat baseline. This isn't the project's goal. It's here as an honest point of reference, using a bootstrap 95% CI on (model log-loss &minus; bookmaker log-loss), 2000 resamples.</p>
           </div>
           <div class="table-wrap">
             <table id="ci-table">
@@ -112,7 +219,7 @@
               <tbody id="ci-tbody"></tbody>
             </table>
           </div>
-          <p class="note">All three intervals sit entirely above zero &mdash; none of the trained models beat the bookmaker baseline, and the gap is statistically significant, not noise.</p>
+          <p class="note">Positive numbers mean the model's log-loss is higher (worse) than the bookmaker's. None of the three models close that gap, which is expected, since none of them use bookmaker odds as an input (see the project's README for why).</p>
 
           <div class="charts-grid">
             <div class="chart-card">
@@ -127,8 +234,16 @@
             </div>
           </div>
         </section>
+
+        <section id="team-page" class="tab-panel">
+          <a href="#upcoming" class="back-link">&larr; Back</a>
+          <div id="team-page-content"></div>
+        </section>
       </main>
     </div>
+    <footer class="site-footer">
+      Club badges and stadium photos via <a href="https://www.thesportsdb.com" target="_blank" rel="noopener">TheSportsDB</a>
+    </footer>
   </div>
 
   <script src="app.js"></script>
