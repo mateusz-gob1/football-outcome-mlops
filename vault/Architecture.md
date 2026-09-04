@@ -35,21 +35,55 @@ see the README's Continuous Integration section.
 Done: static demo dashboard (`frontend/`, ADR-020). Remaining: architecture
 diagram. Not pursued: Medium article (scope trimmed by explicit decision).
 
+## Pivot (2026-09): away from "beat the bookmaker", toward a live matchday site
+
+Decided by Mateusz: the original framing (benchmark against a bookmaker
+baseline, headline result "none of our models beat the market") is being
+de-emphasized in favor of a public-facing site showing **predictions for the
+next Premier League gameweek** from all three ML models side by side, with
+the bookmaker's own pick shown only as a reference, updated automatically
+after every round. See `vault/Architecture-Decisions.md` ADR-022/023 and
+`vault/Evaluation-Log.md` Run 003 for the concrete changes so far:
+
+- **Phase 1 (done):** bookmaker odds removed as a model *input* feature
+  (ADR-022) - the three ML models now predict independent of the betting
+  market; the bookmaker baseline keeps using odds via its own dedicated
+  feature list.
+- **Phase 2 (done):** `src/pipeline/predict_upcoming.py` predicts the next
+  *unplayed* gameweek from all three ML models at once, sourcing fixtures
+  from openfootball/england (ADR-023) since football-data.co.uk has no
+  future-fixture list, with pre-match odds attached opportunistically for
+  display only.
+- **Phase 3 (done):** frontend redesigned around a "Next Matchday" home view
+  (all three ML models per fixture, club badges via TheSportsDB with a
+  colored-initials fallback, a per-gameweek model-agreement chart),
+  multi-model historical browsing (model-select dropdown), the
+  bookmaker-comparison content demoted to a secondary "Methodology" section,
+  and a README rewrite dropping the "beat the bookmaker" framing (ADR-024).
+- **Phase 4 (not started):** weekly GitHub Actions automation so the whole
+  cycle (retrain -> predict next gameweek -> refresh the demo) runs without
+  a manual step.
+
 ## Data flow
 
 ```
-football-data.co.uk (CSV)
-  -> src/data/ingest.py (direct requests/pandas, DVC-tracked raw data)
-  -> src/data/validate.py (schema/range checks)
-  -> src/features/build_features.py (leak-free feature engineering)
-  -> src/models/train.py (walk-forward + nested tuning, MLflow logging)
-  -> src/models/evaluate.py (log-loss, Brier, calibration, bootstrap CI)
-  -> src/models/calibration.py (recalibration, if class reweighting is used)
-  -> src/models/registry.py (MLflow Model Registry, "production" alias)
-  -> src/serving/api.py (FastAPI, loads the aliased model)
+football-data.co.uk (season CSVs)                openfootball/england (future fixtures)
+  -> src/data/ingest.py (DVC-tracked raw data)      -> src/data/fixtures_openfootball.py
+  -> src/data/validate.py (schema/range checks)     -> src/data/team_names.py (name normalization)
+  -> src/features/build_features.py (leak-free feature engineering, historical matches)
+                                                     -> src/data/fixtures_odds.py (pre-match odds, display-only)
+  -> src/models/train.py (walk-forward + nested tuning, MLflow logging;      |
+       bookmaker baseline uses its own odds-only feature list - ADR-022)     |
+  -> src/models/evaluate.py (log-loss, Brier, calibration, bootstrap CI)     |
+  -> src/models/registry.py (MLflow Model Registry, "production" alias;     |
+       fit_full_model() generalizes "fit on all data" beyond one candidate) |
+  -> src/serving/api.py (FastAPI, single-fixture live predict)   <----------+
+  -> src/pipeline/predict_upcoming.py (whole next gameweek, all 3 ML models,
+       via src/features/query_features.py - the same leak-free
+       synthetic-fixture trick api.py uses, shared instead of duplicated)
   -> src/monitoring/drift.py (Evidently: feature drift, recent seasons vs history)
-  -> dags/retrain_dag.py (Airflow: the same cycle above, scheduled weekly)
-  -> frontend/prepare_data.py (exports out-of-fold results to static JSON for the demo)
+  -> dags/retrain_dag.py (Airflow: the retrain cycle, scheduled weekly)
+  -> frontend/prepare_data.py (exports out-of-fold + upcoming-gameweek results to static JSON for the demo)
 ```
 
 This document is updated as each component is built.

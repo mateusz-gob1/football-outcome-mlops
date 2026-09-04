@@ -640,3 +640,422 @@ loop-back arrow that cut straight through three lines of the Airflow box's
 own text, and a Docker/K8s connector arrow that started from empty space
 instead of the FastAPI box - before a manual screenshot (once the tool
 recovered) confirmed the fixed layout visually.
+
+---
+
+## ADR-022: Removed bookmaker odds as a model input feature
+
+**Decision:** `odds_implied_home_prob/draw_prob/away_prob` (ADR-012's
+Bet365+Bet&Win consensus) are no longer part of `FEATURE_COLUMNS` -
+`BookmakerBaseline` alone still uses them, via a new dedicated
+`BOOKMAKER_FEATURE_COLUMNS` list. Logistic Regression, Random Forest, and
+XGBoost now predict purely from match statistics (form, head-to-head, rest
+days, table position) with no visibility into the betting market at all.
+
+**Why:** two independent reasons, either one would have been sufficient.
+(1) Predicting a genuinely future gameweek needs pre-match odds sourced live
+- an extra dependency (a live odds feed) the project didn't otherwise need,
+since every other feature is computable purely from past match history.
+(2) Feeding the bookmaker's own odds into "our" models undermined any
+independent comparison - the model was partly just re-deriving the market's
+own view. Per the ablation study (Run 001/002 in Evaluation-Log.md), odds
+were also by a wide margin the single most important feature group, so this
+is a real, not cosmetic, change: log-loss for all three ML models gets
+measurably worse (Run 003). That's an accepted, deliberate trade-off, not a
+regression to fix - see vault/Evaluation-Log.md Run 003 for the exact
+numbers.
+
+**What this does *not* change:** the bookmaker's pick is still shown
+per-match as a side-by-side reference (both historically and, from Phase 2
+onward, for upcoming fixtures) - it's just no longer wired into the ML
+models' own predictions. ADR-012 (how the bookmaker consensus itself is
+built) is unaffected.
+
+**Registry consequence, same pattern as ADR-013:** retraining Random Forest
+without odds (v10) scored worse than the already-promoted odds-based
+version, so `register_and_promote()`'s automatic gate correctly refused to
+promote it. The `production` alias was moved to v10 anyway via a direct
+`MlflowClient.set_registered_model_alias` call - the same justification as
+ADR-013: this is a feature-*schema* change, not a same-schema quality
+comparison, so the log-loss gate isn't the right check. Leaving the old
+odds-based model promoted would have caused a live schema mismatch, since
+`src/serving/api.py` builds its request features from the current, odds-free
+`FEATURE_COLUMNS` regardless of which version is promoted (confirmed by a
+real test failure - `tests/test_api.py` - before the alias was moved,
+exactly the train/serve skew ADR-013 warned about in general).
+
+**Bookmaker baseline's own feature list is now separate from the shared
+one:** `MODEL_SPECS["bookmaker_baseline"]["feature_cols"]` overrides the
+default `FEATURE_COLUMNS` per-model (rather than one global constant every
+model used), since the bookmaker baseline is the one model that must keep
+seeing odds. `tests/test_train.py` guards this split directly (disjoint
+column sets, `BookmakerBaseline` still predicts correctly when sliced only
+with its own list) so a future edit can't silently reintroduce odds into the
+shared list or break the baseline by accident.
+
+---
+
+## ADR-023: Predicting a genuinely future gameweek - two new data sources, one feature-building fix
+
+**Decision:** Added `src/pipeline/predict_upcoming.py`, which predicts the
+next *unplayed* Premier League gameweek from all three ML models at once.
+This needed two new data sources, since football-data.co.uk (the project's
+only source until now) never publishes a future-fixture list - only
+completed results:
+
+- `src/data/fixtures_openfootball.py` parses openfootball/england's
+  plain-text season schedule (`raw.githubusercontent.com/openfootball/
+  england/master/<season>/1-premierleague.txt`) to find the earliest
+  matchday that still has an unplayed fixture. Team names there ("Arsenal
+  FC", "AFC Bournemouth") don't match football-data.co.uk's short/irregular
+  ones ("Arsenal", "Bournemouth", "Nott'm Forest", "QPR") - `src/data/
+  team_names.py` normalizes via a curated alias table with a fuzzy-match
+  fallback, and **raises rather than guesses** on an unmappable name (a
+  silent wrong mapping would look like a brand-new team with zero history
+  to every downstream feature).
+- `src/data/fixtures_odds.py` opportunistically attaches pre-match odds from
+  football-data.co.uk's separate `fixtures.csv` when it happens to already
+  include Premier League rows for that gameweek (it doesn't always, by the
+  time this was built) - display-only, per ADR-022, so a missing match here
+  just means "bookmaker pick unavailable yet," not an error.
+- Caught while wiring this up: `fixtures.csv` is UTF-8-with-BOM but doesn't
+  declare a charset, so `requests`' `.text` (which guessed Latin-1) mangled
+  the BOM into literal characters glued onto the first column name (`Div`
+  became `ï»¿Div`), breaking the `Div == "E0"` filter. Fixed by decoding
+  `response.content` explicitly as `utf-8-sig` instead of using `.text`.
+
+**Why fixtures are predicted one at a time, never batched into one combined
+DataFrame:** `build_features()`'s table position and rolling-form features
+rank/aggregate across *all* teams as of a given date. If two not-yet-played
+fixtures from the same gameweek (e.g. Friday and Sunday) were appended
+together and featurized in one pass, Friday's synthetic placeholder result
+would already look like a real result to Sunday's fixture - inflating a
+team's table position and form before that Friday match has actually been
+played. `src/features/query_features.py::build_query_features` avoids this
+by construction: it loops internally, featurizing each fixture against only
+real historical data, one at a time, and concatenates the results
+afterward. `tests/test_query_features.py` guards this directly - predicting
+several fixtures together must produce byte-identical output to predicting
+each one alone.
+
+**Refactor along the way:** `src/serving/api.py::predict()` had its own
+copy of the "append a synthetic row, rebuild features, read the new row
+back" trick. It's now `build_query_features` (a one-fixture call), shared
+with the batch path above - one implementation of the leak-free
+future-fixture trick instead of two that could quietly drift apart.
+
+**`src/models/registry.py::train_production_candidate` generalized** into
+`fit_full_model(model_name, params, data)`, usable for any `MODEL_SPECS`
+entry (not just the promoted candidate) - this is what lets
+`predict_upcoming.py` fit fresh logistic regression, random forest, and
+XGBoost models on the entire match history for a fixture that hasn't been
+played yet, where there's no held-out test season to speak of.
+
+**Known real-world wrinkle, not a bug:** openfootball/england's 2026-27
+schedule file lists some clubs (e.g. Coventry City, Hull City) that aren't
+in this project's actual football-data.co.uk history for the current top
+flight - `normalize_openfootball_team_name` correctly raises for those, and
+`next_gameweek_fixtures` logs a warning and skips that one fixture rather
+than crashing the whole gameweek's predictions. Confirmed live on
+2026-09-03: fixtures.csv had no E0 rows yet for the next gameweek (bookmaker
+odds not published that far out), and one fixture (Man City v Coventry) was
+correctly skipped - the other 9 fixtures in that gameweek predicted fine.
+
+---
+
+## ADR-024: Demo redesigned around live-gameweek predictions - supersedes ADR-020
+
+**Decision:** `frontend/` now leads with a "Next Matchday" view (all three ML
+models' picks per upcoming fixture, bookmaker pick shown as a reference when
+published) instead of only browsing historical out-of-fold matches. The
+historical browse view was extended to show all three ML models (via a
+model-select dropdown) instead of just Random Forest, and the
+"Model Performance" tab was renamed "Methodology" with the
+"beat-the-bookmaker" verdict language removed from its copy (the numbers
+stay - just not framed as a headline conclusion). README.md's intro and
+"Result" section were rewritten the same way.
+
+**Why this supersedes ADR-020, not just extends it:** ADR-020's decision was
+"ship pre-computed predictions, not a live model" for a specific reason -
+*there was no live upcoming gameweek to show* at build time (2025/26 had
+ended, 2026/27 hadn't started). That premise no longer holds; the season is
+underway. ADR-020's *other* argument still holds and is carried forward
+unchanged: the demo still ships a pre-computed export
+(`frontend/prepare_data.py` -> static JSON), not a live MLflow-backed
+inference server, because standing up a reachable model server just for a
+portfolio demo isn't worth the operational cost. What changes is *what* gets
+pre-computed and exported: historical OOF results only (ADR-020) versus
+historical OOF results *and* a weekly-refreshed upcoming-gameweek batch from
+`src/pipeline/predict_upcoming.py` (this ADR).
+
+**Why "beat the bookmaker" was removed as the framing, not just downplayed:**
+Mateusz's own assessment, in plain terms - it was the wrong headline for a
+portfolio piece aimed at both recruiters and football fans. A negative
+statistical result ("we didn't beat the market") is honest and worth keeping
+*somewhere* (it still is - Methodology tab, README methodology section), but
+leading with it made the project read as a failed attempt at beating
+bookmakers rather than what it actually demonstrates: rigorous ML
+methodology (walk-forward validation, calibration, a full MLOps stack) and a
+genuinely independent, currently-serving prediction system.
+
+**Data staleness note carried over from Phase 2:** the demo's "Next
+Matchday" JSON is only as fresh as the last time
+`src/pipeline/predict_upcoming.py` + `frontend/prepare_data.py` were run -
+there is no automatic refresh yet. That's Phase 4 (weekly GitHub Actions
+automation), not done as of this ADR.
+
+---
+
+## ADR-025: Club badges via TheSportsDB's free API, not Wikipedia crests
+
+**Decision:** Match cards show each club's badge, resolved once (offline,
+`frontend/prepare_badges.py` -> `frontend/data/team_badges.json`) via
+TheSportsDB's free search API (`src/data/team_badges.py`) and hotlinked
+directly from their CDN at render time - never downloaded, re-hosted, or
+modified. A team with no resolved badge (or an image that fails to load at
+runtime) falls back to a colored-initials avatar (`teamInitials`/`teamColor`
+in `frontend/app.js`) rather than a broken image. The page footer credits
+TheSportsDB with a link, per their terms of use.
+
+**Why not Wikipedia/Wikimedia Commons (the first option considered):** most
+current Premier League club crest files there are tagged "non-free use" -
+explicitly licensed only for identifying the subject within a Wikipedia
+article, not for reuse on a third-party site. Downloading and embedding
+those on a public, deployed demo would be a real licensing violation, not
+just a formality - this was flagged and the user agreed to use TheSportsDB
+instead once that was clear.
+
+**Why TheSportsDB is an acceptable middle ground:** their free-tier terms
+(thesportsdb.com/docs_terms_of_use.php) explicitly allow using their
+API/artwork "for your development projects," conditioned on not modifying
+trademarked logos and linking back to their site - both satisfied here.
+It's still someone else's trademarked material displayed under a specific
+API's terms, not a freely-licensed asset - if this project ever needed
+stronger guarantees (e.g. commercial use), a paid/licensed logo API would be
+the correct next step, not this one.
+
+**Real friction hit while building this:** the shared public test API key
+("3") rate-limits (HTTP 429) heavily under any real request volume - a batch
+of ~40 team lookups needed retry-with-backoff (`fetch_team_badge`) and took
+several passes to fully resolve. `frontend/prepare_badges.py` only re-fetches
+teams missing from the existing `team_badges.json` rather than the whole set
+every time, for exactly this reason.
+
+**Real bug caught by a test written for this feature, not by manual
+inspection:** `_best_match`'s first version preferred any team whose league
+name *contained* "premier league" (case-insensitive substring) - but
+"Premier League 2" is the real name of England's U21 reserve competition, so
+"West Brom U21" (league: "English Premier League 2") would have matched
+before the actual first team. `tests/test_team_badges.py` was written to
+lock in the intended behavior *before* checking - it initially exposed this
+exact bug (the substring check couldn't tell the two leagues apart), fixed
+by requiring an exact match on `"English Premier League"` instead.
+
+**Separate build step, not part of `frontend/prepare_data.py`:** club
+badges essentially never change between runs (unlike model output), and
+hit an external rate-limited API - bundling badge resolution into the
+data-refresh script that's meant to run after every retrain/gameweek would
+add needless external-API risk to every routine update. It only needs
+re-running when a genuinely new team appears in the data (promotion).
+
+---
+
+## ADR-026: Match-stat features (shots, corners, cards) added; xG deliberately left out for now
+
+**Decision:** `FEATURE_COLUMNS` gained 14 new rolling-5-average features per
+side - shots for/against, shots on target for/against, corners for/against,
+and a combined yellow+red "cards for" discipline indicator
+(`src/features/build_features.py`: `STAT_COLUMN_PAIRS`, `ROLLING_SUM_STATS`).
+Computed the same leak-free way as existing form/goals features (past
+matches only, via `.shift(1).rolling(5)`), so they work for genuinely future
+fixtures with no new data-availability requirement - shots/corners/cards
+have been in football-data.co.uk's files for all 17 seasons on record.
+
+**xG (expected goals) was raised as a candidate too and rejected for now, not
+overlooked:** football-data.co.uk only started publishing `HxG`/`AxG` from
+the 2026/27 season - checked directly against the raw files (16 older
+season CSVs have no such column at all; only the 20 matches played so far
+in 2026/27 do). Walk-forward validation needs the feature across many
+seasons to mean anything; with 16 seasons blank, either those seasons get
+dropped entirely (destroying nearly all training data) or the feature gets
+imputed with no real signal (defeats the purpose). Revisit once enough
+seasons carry it - plausibly not for a few years. In the meantime, xG is
+carried through as a **display-only** field (`DISPLAY_ONLY_COLUMNS` in
+`src/data/validate.py`, NaN for pre-2026/27 matches) and shown in the
+frontend's team-profile view for matches that have it, same treatment as
+bookmaker odds after ADR-022 - informative, not fed to any model.
+
+**Result - the promotion gate worked normally this time, no manual
+override needed** (contrast with ADR-013/ADR-022's forced promotions):
+Random Forest's log-loss improved from 1.0047 to 0.9935 with the new
+features, so `register_and_promote()`'s automatic "not worse" check passed
+on its own. See `vault/Evaluation-Log.md` Run 004 for full numbers -
+shots-based features (`away_shots_against_5`, `home_shots_for_5`,
+`home_shots_against_5`) now rank among the single most important
+individual features, ahead of table position.
+
+**Required, not optional, columns:** shots/shots-on-target/corners/cards
+were added to `REQUIRED_COLUMNS` in `src/data/validate.py` (not
+`OPTIONAL_COLUMNS`, unlike Bet&Win odds) - unlike BW's 141-match gap in
+2024/25, these are missing in only 1 of ~6100 rows across all 17 seasons
+combined, so dropping that one row outright (existing `dropna` behavior) is
+simpler than building fallback-imputation logic for a near-nonexistent gap.
+
+---
+
+## ADR-027: Tried ensembling and a wider hyperparameter search - honest result, neither helped much; recalibration reopened
+
+**Decision/context:** Mateusz asked, reasonably, how confident we are that
+the three models are squeezing out everything the data has to offer. Three
+things were checked in order:
+
+**1. Ensembling (`EnsembleAverage` in `src/models/train.py`)** - a plain
+average of logistic regression, random forest, and XGBoost's predicted
+probabilities, each refit per walk-forward fold with fixed, previously-
+established hyperparameters (`ENSEMBLE_MEMBER_PARAMS`) rather than nested-
+tuning all three jointly (would multiply the grid size for little expected
+benefit). **Result: it made things slightly worse** (0.9979 vs Random
+Forest/Logistic Regression's ~0.9936) - equal-weight averaging drags the
+result toward the weakest member (XGBoost, 0.9999) instead of toward the
+best one. Kept in `MODEL_SPECS` and shown on the demo (useful, honest
+context: "here's what a naive ensemble gets you"), but never a promotion
+candidate.
+
+**2. Wider hyperparameter grids** (Random Forest: `min_samples_leaf` added,
+more `n_estimators`/`max_depth` values; XGBoost: `subsample` added to both
+the wrapper and its grid; Logistic Regression: wider `C` range). **Result:
+mostly noise.** XGBoost genuinely improved (1.0096 -> 0.9999 log-loss) - the
+one case where the wider grid clearly helped. Random Forest was
+unchanged in practice (0.9935 -> 0.9936, an utterly negligible difference -
+the automatic promote-if-better gate correctly declined to promote the new
+version, no manual override needed, unlike ADR-013/022's feature-schema
+cases). Logistic Regression actually got very slightly *worse* (0.9951 ->
+0.9977) - plausible, ordinary nested-CV variance from different C values
+winning the inner-fold selection under the new grid, not a real regression.
+**Conclusion: the previous grids were already close to as good as this
+model family gets on this feature set** - more search didn't move the
+needle except for XGBoost specifically.
+
+**3. Recalibration re-check (`src/models/calibration.py`, rebuilt from
+scratch - the file referenced by the original ADR-009 no longer exists in
+the repo)** - isotonic and Platt scaling applied post-hoc to each model's
+OOF probabilities. **Result: recalibration now helps, for every model**
+(isotonic: -0.01 to -0.013 log-loss across all four ML models) - the
+opposite conclusion from ADR-009's original check, which predates the
+ADR-026 shots/corners/cards features and found no benefit. **Important
+caveat, stated directly in the code's own docstring:** this check fits and
+evaluates the recalibration on the *same* OOF data - optimistic versus a
+real deployment, which would need to fit recalibration on a properly
+held-out slice (e.g. per outer walk-forward fold, using only that fold's
+training data). The honest headline is "there's recalibration headroom
+worth pursuing properly," not "log-loss will drop by exactly this much in
+production." **Not yet integrated into the trained/served models** -
+building a leak-free, per-fold recalibration step is real, separate work
+(next candidate task), not done as part of this check.
+
+**Overall answer to "are we squeezing out everything":** mostly yes for
+model *choice and tuning* (ensembling and wider search barely moved
+things - Random Forest and Logistic Regression are both already close to
+this feature set's ceiling), but no for *calibration* - that's the one
+concrete, promising lever this check surfaced, pending a fair (non-leaky)
+re-measurement before it's trusted for production.
+
+See `vault/Evaluation-Log.md` Run 005 for the full numbers.
+
+---
+
+## ADR-028: The fair recalibration re-check reverses ADR-027's optimistic finding for isotonic
+
+**Decision:** Built `leakfree_recalibrated_log_loss()` in
+`src/models/calibration.py` - for each walk-forward test season, fits the
+recalibrator only on OOF rows from strictly earlier seasons, then scores
+that season's rows with it (the earliest season has nothing earlier to
+calibrate from and is dropped, same trade-off as `MIN_HISTORY` elsewhere).
+`tests/test_calibration.py::test_leakfree_recalibration_never_uses_the_test_season_itself_to_fit`
+locks this in directly - it patches the fit step to record what it was
+given and asserts none of it comes from the season being scored.
+
+**Result: isotonic regression's apparent win in ADR-027 was mostly
+overfitting, not a real effect.** Evaluated honestly (recalibrator fit only
+on genuinely prior seasons), isotonic makes every model's log-loss *worse* -
+dramatically so for Logistic Regression (0.9936 -> 1.1211) and Random
+Forest (0.9936 -> 1.0472). Isotonic regression is a very flexible,
+non-parametric fit; with only one or a few prior seasons' worth of data to
+calibrate from (as few as ~340 matches for the second test season), it
+fits noise in that small sample instead of a real miscalibration pattern,
+and that noise doesn't generalize to the next season. ADR-027's same-data
+check couldn't see this because fitting and evaluating on identical data
+hides overfitting by construction - exactly the caveat that ADR-027 flagged
+in advance as the reason not to trust that number for production.
+
+**Platt scaling (the simpler, 2-parameter method) mostly survives the fair
+re-check:**
+
+| Model | Baseline | Platt (leak-free) |
+|---|---|---|
+| Random Forest (production) | 0.9936 | 0.9948 (worse) |
+| Logistic Regression | 0.9936 | 0.9906 (better) |
+| XGBoost | 0.9999 | 0.9975 (better) |
+| Ensemble | 0.9979 | 0.9959 (better) |
+
+Being a much simpler model, Platt scaling can't overfit the same way on a
+small calibration set - it improves 3 of 4 models by a real, if modest,
+~0.002-0.003 log-loss (an order of magnitude smaller than isotonic's
+illusory same-data gain).
+
+**Conclusion / what changes in production: nothing, for now.** Random
+Forest is the currently promoted model, and Platt recalibration makes *it*
+slightly worse, not better - there is no recalibration change to deploy
+today. The result is still worth having: it corrects ADR-027's record
+(isotonic doesn't actually help, full stop), narrows future recalibration
+work to Platt-style methods only, and is a fair example of why "recalibrate
+and re-evaluate on the same data" is not an acceptable production check -
+this project won't make that mistake again.
+
+**Not pursued further:** trying to make Platt scaling work for Random
+Forest specifically (e.g. a different calibration window, blending with
+the uncalibrated output) - the gain elsewhere is small enough that this
+isn't a priority next step; ensembling architecture (ADR-027) and further
+feature work are likely to matter more than chasing a ~0.001-0.003
+log-loss delta on calibration alone.
+
+## ADR-029: Frontend rebrand ("Prem Lab") and a bolder, club-themed visual redesign
+
+**Decision:** Renamed the demo from the generic "Football Outcome
+Predictor" to **Prem Lab** and replaced the light, Apple-style theme with
+a dark pitch-green glass-morphism design (`frontend/style.css`) - deep
+green gradient background, translucent blurred cards with angular
+clipped corners, and a 4-color logo mark (one bar per model: Random
+Forest, Logistic Regression, XGBoost, Ensemble) that sits directly on the
+page instead of inside a separate nav-bar banner. The repo/README title
+stays the technical "Football Match Outcome Prediction - MLOps Pipeline"
+deliberately - "Prem Lab" is the consumer-facing product name shown on
+the page and the Hugging Face Space, the same split many projects have
+between an internal/repo name and a public product name.
+
+**Team pages got substantially richer**, not just re-skinned: each
+club's page (`#team/<name>`) now pulls a real stadium photo and identity
+facts (nickname, founding year, ground capacity) from TheSportsDB's venue
+lookup endpoint (`src/data/team_stadiums.py`, extending the existing
+badge-lookup module rather than duplicating its team-search/retry logic),
+and the whole page - not just the header banner - washes toward that
+club's real color (`teamColor()` in `app.js`, unchanged from earlier;
+only the CSS consuming it changed).
+
+**Iterated with the user against live screenshots rather than guessing
+once:** the background wash initially left a hard visible seam partway
+down the page (`body` had a fixed `height: 100%`, so its own background
+only covered one viewport's worth even though the page scrolled taller -
+fixed by switching to `min-height`), and a first attempt at a stronger
+team-color wash still went nearly black on wide viewports because a
+radial-gradient's circular falloff doesn't reach a wide screen's far
+corners - fixed by making the *linear* gradient layer (uniform across
+the full width) carry most of the color, with the radial only adding
+depth. Both are documented here because they're easy to reintroduce by
+accident if this CSS is refactored later.
+
+**Two rounds of brand-identity options were mocked up as a Claude Design
+canvas** (four nav-bar directions, then reviewed live) rather than
+guessing in code - "Prem Lab" together with a 4-bar "consensus meter"
+mark (no boxed badge, no ball emoji, no pie/ring icon) is what the user
+picked out of those options.
