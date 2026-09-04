@@ -1,0 +1,48 @@
+name: Deploy Pages
+
+# Deploys frontend/ to GitHub Pages - the site's actual live hosting (see
+# ADR-031: moved off a Hugging Face Space, which needs a manual redeploy to
+# pick up new content and isn't otherwise ever prompted to). Triggered
+# directly whenever frontend/ changes on main, and called as a job from
+# weekly_update.yml after each automated data refresh.
+on:
+  push:
+    branches: [main]
+    paths: ["frontend/**"]
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref to deploy (defaults to whatever triggered this run)"
+        type: string
+        required: false
+        default: ""
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -164,23 +164,21 @@ manual step, on two cadences:
 | Tuesday & Friday 07:00 UTC | Just refreshes the upcoming gameweek's predictions and picks up any newly published bookmaker odds (football-data.co.uk usually (re)publishes around these two days - ADR-023), no retrain |
 
 Either path regenerates `frontend/data/*.json`, commits the refresh back to
-`main`, and pushes `frontend/` to the Hugging Face Space
-(`git subtree push --prefix=frontend hf main`, the same mechanism as the
-original manual deploy - ADR-020). A manual run of either cadence is
-available from the Actions tab (`workflow_dispatch`, with a "full retrain"
-checkbox). See ADR-030 for why it's one workflow with two schedules rather
-than two workflows.
+`main`, and redeploys `frontend/` to GitHub Pages (a call to
+`.github/workflows/deploy-pages.yml`, the same workflow that redeploys on
+every ordinary push to `main` touching `frontend/`). A manual run of
+either cadence is available from the Actions tab (`workflow_dispatch`,
+with a "full retrain" checkbox). See ADR-030 for why it's one workflow
+with two schedules rather than two, and ADR-031 for why Pages rather than
+the original Hugging Face Space.
 
-**One-time setup this can't do unattended:** the Space push needs an
-`HF_TOKEN` repo secret - a Hugging Face access token with write access to
-the `Matigob/football-outcome-predictor` Space, added under the GitHub
-repo's Settings → Secrets and variables → Actions. Without it, the
-predictions/data refresh still runs and commits to `main`; only the Space
-push step fails.
+No secrets or one-time setup needed for this - GitHub Pages deploys with
+the workflow's own built-in token, since it's hosted on the same platform
+as the Actions runner.
 
 ## Demo
 
-**Live: [matigob-football-outcome-predictor.static.hf.space](https://matigob-football-outcome-predictor.static.hf.space)** — branded **Prem Lab** on the page itself.
+**Live: [mateusz-gob1.github.io/football-outcome-mlops](https://mateusz-gob1.github.io/football-outcome-mlops/)** — branded **Prem Lab** on the page itself. Always-on GitHub Pages hosting, redeployed automatically on every update (ADR-031) - no manual redeploy step, unlike the Hugging Face Space this replaced.
 
 `frontend/` is a standalone static site (plain HTML/CSS/JS + Chart.js, no
 server, no live model) with three tabs: **Next Matchday** (all three ML
@@ -193,8 +191,8 @@ comparison discussed above). Every team name links to a real, bookmarkable
 page (`#team/<name>`) themed in that club's own colors, with a real stadium
 photo banner and identity facts (nickname, founding year, ground capacity).
 It ships pre-computed exports rather than talking to a live model or API -
-see ADR-020/024 for why. Deployed to Hugging Face Spaces (Static SDK) via
-`git subtree push --prefix=frontend`. Club badges and stadium photos are
+see ADR-020/024 for why. Deployed to GitHub Pages via
+`.github/workflows/deploy-pages.yml` (ADR-031). Club badges and stadium photos are
 hotlinked from [TheSportsDB](https://www.thesportsdb.com)'s free API
 (attribution in the page footer, per their terms of use) - never downloaded
 or modified, with a colored-initials fallback for any team without a

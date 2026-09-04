@@ -1095,15 +1095,50 @@ server, started the same way `ci.yml`'s `test` job already does.
 
 **Refreshed data commits back to `main` with `[skip ci]`** (data is the
 only thing that changed, re-running lint/test/docker/airflow against it
-would just re-verify code that didn't move) and the frontend is pushed to
-the Hugging Face Space via the same `git subtree push --prefix=frontend hf
-main` used for the original manual deploy (ADR-020) - a normal push each
-time now, not the one-off force-push that ADR-020 needed to get past HF's
-placeholder template.
+would just re-verify code that didn't move), and the frontend redeploys
+via a call to `deploy-pages.yml`.
 
-**Manual, one-time setup this can't do unattended:** a Hugging Face access
-token with write access to the Space, added as the `HF_TOKEN` secret in
-the GitHub repo's settings. Without it the workflow's data/prediction
-refresh still runs and commits to `main`; only the Space push step fails
-(with an explicit message pointing at this ADR/the README, not a silent
-skip).
+**Superseded within the same session:** this ADR originally deployed via
+`git subtree push --prefix=frontend hf main` to the Hugging Face Space
+from ADR-020, gated on a manually-created `HF_TOKEN` secret. ADR-031
+replaces that Space with GitHub Pages before this workflow ever ran on
+its schedule - the two-cadence design above is unchanged, only the last
+step's destination is.
+
+## ADR-031: Moved live hosting from a Hugging Face Space to GitHub Pages
+
+**Decision:** Replaced the Hugging Face Static Space (ADR-020) with
+**GitHub Pages**, deployed by a new `.github/workflows/deploy-pages.yml`
+(`actions/upload-pages-artifact` + `actions/deploy-pages`, Pages
+configured for `build_type: workflow` rather than the branch/folder
+mode). Live at
+`https://mateusz-gob1.github.io/football-outcome-mlops/`. `frontend/`
+needed no code changes - every asset and JSON fetch already uses relative
+paths (`style.css`, `data/predictions.json`, ...), so serving from a
+project-site subpath rather than a domain root works unmodified.
+
+**Why:** the user reported the Hugging Face Space going stale/inactive
+between visits rather than reliably staying live, and static Spaces have
+no equivalent of Pages' "just serve the last deployed artifact,
+indefinitely, no idle state" model - Pages is the platform actually built
+for exactly this (a static site with no backend), and it's already the
+same platform hosting this repo and its Actions runners, so no new
+account or credential is needed at all: `deploy-pages.yml` authenticates
+with the workflow run's own built-in `GITHUB_TOKEN`/OIDC token, not a
+manually-created secret. This directly removes the one manual setup step
+ADR-030 flagged (`HF_TOKEN`).
+
+**Two triggers share one deploy workflow:** `deploy-pages.yml` runs
+directly on every push to `main` that touches `frontend/` (so a plain
+design/copy change goes live immediately, not just on the next scheduled
+run), and is also called as a job from `weekly_update.yml` after each
+automated data refresh (passing `ref: main` explicitly, since a
+reusable-workflow job otherwise checks out the SHA that triggered the
+*calling* workflow, not the new commit `weekly_update.yml`'s own `update`
+job just pushed).
+
+**Not migrated:** the Hugging Face Space itself is left in place, just no
+longer pushed to - deleting it is a manual, destructive action on an
+external account this project doesn't automate, and the Space costs
+nothing sitting idle. The README's live link now points at GitHub Pages
+only.

@@ -23,6 +23,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: weekly-update
@@ -92,16 +94,15 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # Same subtree-push mechanism as the original manual deploy (ADR-020) -
-      # pushes even when the data commit above was a no-op, since app.js/style.css
-      # changes land via normal commits to main, not this job.
-      - name: Push frontend to the Hugging Face Space
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          if [ -z "$HF_TOKEN" ]; then
-            echo "HF_TOKEN secret is not set - skipping the Space push. See README for one-time setup." >&2
-            exit 1
-          fi
-          git remote add hf "https://Matigob:${HF_TOKEN}@huggingface.co/spaces/Matigob/football-outcome-predictor" 2>/dev/null || true
-          git subtree push --prefix=frontend hf main
+  # A separate job (rather than a step above) because deploying to Pages is
+  # itself a reusable workflow (deploy-pages.yml) - the same one that runs
+  # on every ordinary push to main that touches frontend/. `ref: main` here
+  # (rather than the default github.sha, which is fixed at the moment this
+  # run was *triggered*) picks up the commit `update` just pushed, including
+  # when that commit didn't happen (nothing changed) - then it's just a
+  # no-op redeploy of the current main.
+  deploy:
+    needs: update
+    uses: ./.github/workflows/deploy-pages.yml
+    with:
+      ref: main
