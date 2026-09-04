@@ -26,6 +26,13 @@ FEATURE_COLUMNS = [
     "home_form_pts_10",
     "home_goals_scored_5",
     "home_goals_conceded_5",
+    "home_shots_for_5",
+    "home_shots_against_5",
+    "home_shots_on_target_for_5",
+    "home_shots_on_target_against_5",
+    "home_corners_for_5",
+    "home_corners_against_5",
+    "home_cards_for_5",
     "home_streak_before",
     "home_rest_days",
     "home_table_position",
@@ -33,12 +40,21 @@ FEATURE_COLUMNS = [
     "away_form_pts_10",
     "away_goals_scored_5",
     "away_goals_conceded_5",
+    "away_shots_for_5",
+    "away_shots_against_5",
+    "away_shots_on_target_for_5",
+    "away_shots_on_target_against_5",
+    "away_corners_for_5",
+    "away_corners_against_5",
+    "away_cards_for_5",
     "away_streak_before",
     "away_rest_days",
     "away_table_position",
     "h2h_home_pts",
     "h2h_away_pts",
     "h2h_matches_count",
+]
+BOOKMAKER_FEATURE_COLUMNS = [
     "odds_implied_home_prob",
     "odds_implied_draw_prob",
     "odds_implied_away_prob",
@@ -81,6 +97,9 @@ class XGBoostWrapper:
             n_estimators=params.get("n_estimators", 300),
             max_depth=params.get("max_depth", 4),
             learning_rate=params.get("learning_rate", 0.1),
+            subsample=params.get("subsample", 1.0),
+            colsample_bytree=params.get("colsample_bytree", 1.0),
+            reg_lambda=params.get("reg_lambda", 1.0),
             objective="multi:softprob",
             num_class=3,
             random_state=42,
@@ -112,31 +131,83 @@ def make_random_forest(params: dict) -> RandomForestClassifier:
     )
 
 
+# Fixed hyperparameters for the ensemble's three sub-models - each one's own
+# already-established best setting from walk-forward tuning (see
+# vault/Evaluation-Log.md), not re-tuned per fold. Nested tuning the
+# ensemble itself (tuning 3 models' hyperparameters jointly, per fold) would
+# multiply the grid size of all three together for a benefit that's usually
+# marginal compared to just averaging already-good models - not worth the
+# extra training time.
+ENSEMBLE_MEMBER_PARAMS = {
+    "logistic_regression": {"C": 1.0},
+    "random_forest": {"n_estimators": 300, "max_depth": 6},
+    "xgboost": {"n_estimators": 300, "max_depth": 4, "learning_rate": 0.1},
+}
+
+
+class EnsembleAverage:
+    """Simple average of logistic regression, random forest, and XGBoost's
+    own predicted probabilities - each refit from scratch on whatever
+    training window walk_forward_validate passes in, so its OOF predictions
+    are exactly as leak-free as any individual model's.
+    """
+
+    classes_ = np.array(["A", "D", "H"])
+
+    def __init__(self, params: dict | None = None):
+        self.models = {
+            "logistic_regression": make_logreg(ENSEMBLE_MEMBER_PARAMS["logistic_regression"]),
+            "random_forest": make_random_forest(ENSEMBLE_MEMBER_PARAMS["random_forest"]),
+            "xgboost": XGBoostWrapper(ENSEMBLE_MEMBER_PARAMS["xgboost"]),
+        }
+
+    def fit(self, X, y):
+        for model in self.models.values():
+            model.fit(X, y)
+        return self
+
+    def predict_proba(self, X):
+        probs = [model.predict_proba(X) for model in self.models.values()]
+        return np.mean(probs, axis=0)
+
+
 MODEL_SPECS = {
     "bookmaker_baseline": {
         "factory": lambda params: BookmakerBaseline(),
         "param_grid": None,
+        "feature_cols": BOOKMAKER_FEATURE_COLUMNS,
     },
     "logistic_regression": {
         "factory": make_logreg,
-        "param_grid": [{"C": c} for c in [0.01, 0.1, 1.0, 10.0]],
+        "param_grid": [{"C": c} for c in [0.001, 0.01, 0.1, 1.0, 10.0, 100.0]],
     },
     "random_forest": {
         "factory": make_random_forest,
         "param_grid": [
-            {"n_estimators": n, "max_depth": d}
-            for n in [200, 400]
-            for d in [6, 12, None]
+            {"n_estimators": n, "max_depth": d, "min_samples_leaf": leaf}
+            for n in [200, 300, 400]
+            for d in [6, 10, None]
+            for leaf in [1, 3]
         ],
     },
     "xgboost": {
         "factory": lambda params: XGBoostWrapper(params),
         "param_grid": [
-            {"n_estimators": n, "max_depth": d, "learning_rate": lr}
+            {
+                "n_estimators": n,
+                "max_depth": d,
+                "learning_rate": lr,
+                "subsample": sub,
+            }
             for n in [200, 400]
-            for d in [3, 6]
-            for lr in [0.05, 0.1]
+            for d in [3, 5, 7]
+            for lr in [0.03, 0.1]
+            for sub in [0.8, 1.0]
         ],
+    },
+    "ensemble": {
+        "factory": lambda params: EnsembleAverage(params),
+        "param_grid": None,
     },
 }
 
@@ -169,7 +240,9 @@ def prepare_dataset() -> pd.DataFrame:
     features = build_features(matches)
     features = features[features["has_min_history"]].copy()
     features = impute_missing_features(features)
-    features = features.dropna(subset=FEATURE_COLUMNS + [TARGET_COLUMN])
+    features = features.dropna(
+        subset=FEATURE_COLUMNS + BOOKMAKER_FEATURE_COLUMNS + [TARGET_COLUMN]
+    )
     return features
 
 
@@ -177,9 +250,10 @@ def train_and_log(
     model_name: str, data: pd.DataFrame
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     spec = MODEL_SPECS[model_name]
+    feature_cols = spec.get("feature_cols", FEATURE_COLUMNS)
     fold_results, oof_predictions = walk_forward_validate(
         data,
-        feature_cols=FEATURE_COLUMNS,
+        feature_cols=feature_cols,
         target_col=TARGET_COLUMN,
         model_factory=spec["factory"],
         param_grid=spec["param_grid"],
@@ -189,7 +263,7 @@ def train_and_log(
     with mlflow.start_run(run_name=model_name):
         mlflow.log_param("model", model_name)
         mlflow.log_param("min_train_seasons", MIN_TRAIN_SEASONS)
-        mlflow.log_param("n_features", len(FEATURE_COLUMNS))
+        mlflow.log_param("n_features", len(feature_cols))
         mlflow.log_param("nested_tuning", spec["param_grid"] is not None)
 
         for _, row in fold_results.iterrows():

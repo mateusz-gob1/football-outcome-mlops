@@ -38,12 +38,25 @@ CANDIDATE_PARAMS = {
 }  # max_depth=6 won every walk-forward fold
 
 
+def fit_full_model(model_name: str, params: dict | None, data):
+    """Fit one MODEL_SPECS entry on the entire dataset - no walk-forward split.
+
+    Used both for the promoted production candidate (train_production_candidate,
+    below) and for predicting genuinely future fixtures
+    (src/pipeline/predict_upcoming.py), where there's no held-out test season
+    to speak of - the whole match history becomes the training set.
+    """
+    spec = MODEL_SPECS[model_name]
+    feature_cols = spec.get("feature_cols", FEATURE_COLUMNS)
+    model = spec["factory"](params or {})
+    model.fit(data[feature_cols], data[TARGET_COLUMN])
+    return model
+
+
 def train_production_candidate():
     """Fit the final model on the full dataset, using the walk-forward-selected hyperparameters."""
     data = prepare_dataset()
-    factory = MODEL_SPECS[CANDIDATE_MODEL]["factory"]
-    model = factory(CANDIDATE_PARAMS)
-    model.fit(data[FEATURE_COLUMNS], data[TARGET_COLUMN])
+    model = fit_full_model(CANDIDATE_MODEL, CANDIDATE_PARAMS, data)
     return model, data
 
 

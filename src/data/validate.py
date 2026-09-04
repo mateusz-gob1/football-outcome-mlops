@@ -24,6 +24,19 @@ REQUIRED_COLUMNS = [
     "B365H",
     "B365D",
     "B365A",
+    # Match stats (shots, shots on target, corners, cards) - present for every
+    # season back to 2010/11 (unlike xG, only introduced 2026/27 - see
+    # ADR-026), used for rolling-average features in build_features.py.
+    "HS",
+    "AS",
+    "HST",
+    "AST",
+    "HC",
+    "AC",
+    "HY",
+    "AY",
+    "HR",
+    "AR",
 ]
 
 # BW (Bet&Win) is present in 14/16 seasons but has a large gap in 2024/25
@@ -31,6 +44,12 @@ REQUIRED_COLUMNS = [
 # averaged with B365 for a sturdier baseline/feature; falls back to B365 alone
 # for rows where it's missing, rather than dropping those matches entirely.
 OPTIONAL_COLUMNS = ["BWH", "BWD", "BWA"]
+
+# xG (expected goals) - display-only, not a model feature. Only present from
+# 2026/27 onward (football-data.co.uk added it then); 16 seasons of training
+# history have none, so it can't be walk-forward validated yet. Optional so
+# older season files (without the columns at all) still validate.
+DISPLAY_ONLY_COLUMNS = ["HxG", "AxG"]
 
 FILENAME_RE = re.compile(rf"{LEAGUE_CODE}_(\d{{2}})(\d{{2}})\.csv")
 
@@ -54,6 +73,9 @@ def load_raw_season(path: Path) -> pd.DataFrame:
     missing = [c for c in REQUIRED_COLUMNS + OPTIONAL_COLUMNS if c not in df.columns]
     if missing:
         raise ValidationError(f"{path.name} is missing required columns: {missing}")
+    for col in DISPLAY_ONLY_COLUMNS:
+        if col not in df.columns:
+            df[col] = float("nan")
     df["Date"] = pd.to_datetime(df["Date"], dayfirst=True, format="mixed")
     df["season_start_year"] = _season_start_year_from_filename(path)
     return df
@@ -124,7 +146,14 @@ def validate_all(raw_dir: Path = RAW_DATA_DIR) -> pd.DataFrame:
                 "%s: dropped %d row(s) with missing required fields", path.name, dropped
             )
 
-        frames.append(df[REQUIRED_COLUMNS + OPTIONAL_COLUMNS + ["season_start_year"]])
+        frames.append(
+            df[
+                REQUIRED_COLUMNS
+                + OPTIONAL_COLUMNS
+                + DISPLAY_ONLY_COLUMNS
+                + ["season_start_year"]
+            ]
+        )
 
     combined = (
         pd.concat(frames, ignore_index=True).sort_values("Date").reset_index(drop=True)

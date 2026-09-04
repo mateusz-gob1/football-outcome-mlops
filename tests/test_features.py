@@ -18,6 +18,16 @@ def _matches(rows: list[dict]) -> pd.DataFrame:
         ("BWH", 2.5),
         ("BWD", 3.2),
         ("BWA", 2.9),
+        ("HS", 10),
+        ("AS", 10),
+        ("HST", 5),
+        ("AST", 5),
+        ("HC", 5),
+        ("AC", 5),
+        ("HY", 1),
+        ("AY", 1),
+        ("HR", 0),
+        ("AR", 0),
     ]
     for col, default in defaults:
         if col not in df.columns:

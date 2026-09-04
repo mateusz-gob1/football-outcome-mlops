@@ -33,7 +33,6 @@ FEATURE_GROUPS = {
     "rest_days": [c for c in FEATURE_COLUMNS if "rest_days" in c],
     "table_position": [c for c in FEATURE_COLUMNS if "table_position" in c],
     "h2h": [c for c in FEATURE_COLUMNS if c.startswith("h2h")],
-    "odds": [c for c in FEATURE_COLUMNS if c.startswith("odds_")],
 }
 
 

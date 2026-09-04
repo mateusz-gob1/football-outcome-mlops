@@ -1,10 +1,10 @@
 """FastAPI serving layer for the football match outcome predictor.
 
-Reuses src/features/build_features.py directly at request time (append the
-requested fixture to the historical dataset, recompute features, read back
-the one new row) instead of re-implementing feature logic for serving. This
-avoids train/serve skew: the exact same leak-free pipeline that produced the
-training data also produces the live prediction's features.
+Uses src.features.query_features.build_query_features to featurize the
+requested fixture the same way src/pipeline/predict_upcoming.py does for a
+whole gameweek - the exact same leak-free pipeline that produced the
+training data also produces the live prediction's features, avoiding
+train/serve skew.
 """
 
 import logging
@@ -15,14 +15,9 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException
 from mlflow import MlflowClient
 
-from src.data.ingest import season_start_year_for_date
-from src.features.build_features import build_features
+from src.features.query_features import build_query_features
 from src.models.registry import PRODUCTION_ALIAS, REGISTERED_MODEL_NAME
-from src.models.train import (
-    FEATURE_COLUMNS,
-    PROCESSED_DATA_PATH,
-    impute_missing_features,
-)
+from src.models.train import FEATURE_COLUMNS, PROCESSED_DATA_PATH
 from src.serving.schemas import HealthResponse, PredictRequest, PredictResponse
 
 logger = logging.getLogger(__name__)
@@ -86,27 +81,18 @@ def predict(request: PredictRequest) -> PredictResponse:
         [
             {
                 "Date": pd.Timestamp(request.match_date),
-                "season_start_year": season_start_year_for_date(request.match_date),
                 "HomeTeam": request.home_team,
                 "AwayTeam": request.away_team,
-                "FTHG": 0,
-                "FTAG": 0,
-                "FTR": "H",
                 "B365H": request.b365h,
                 "B365D": request.b365d,
                 "B365A": request.b365a,
                 "BWH": request.bwh if request.bwh is not None else float("nan"),
                 "BWD": request.bwd if request.bwd is not None else float("nan"),
                 "BWA": request.bwa if request.bwa is not None else float("nan"),
-                "_is_query": True,
             }
         ]
     )
-    historical = _state["historical"].assign(_is_query=False)
-    combined = pd.concat([historical, new_row], ignore_index=True)
-
-    features = build_features(combined)
-    query_row = features[features["_is_query"]]
+    query_row = build_query_features(_state["historical"], new_row)
 
     no_history = (
         query_row[["home_matches_played_prior", "away_matches_played_prior"]]
@@ -125,7 +111,6 @@ def predict(request: PredictRequest) -> PredictResponse:
             detail="At least one team has zero matches before this date in our historical data - cannot compute features",
         )
 
-    query_row = impute_missing_features(query_row)
     X = query_row[FEATURE_COLUMNS]
 
     model = _state["model"]

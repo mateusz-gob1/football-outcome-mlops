@@ -15,31 +15,53 @@ H2H_WINDOW = 5
 FORM_WINDOWS = (5, 10)
 
 
+# Match-stat columns (football-data.co.uk) that mirror goals: known only
+# after the match, safe as rolling-average-of-past-matches features (never
+# as a same-match feature). xG isn't here - see ADR-026, only available from
+# 2026/27 onward, so it can't be walk-forward validated across 16 seasons of
+# history yet; kept display-only.
+STAT_COLUMN_PAIRS = {
+    "goals": ("FTHG", "FTAG"),
+    "shots": ("HS", "AS"),
+    "shots_on_target": ("HST", "AST"),
+    "corners": ("HC", "AC"),
+}
+
+# (source column in the long-format table, output rolling-5 feature name).
+# goals keeps its original names (goals_scored_5/goals_conceded_5, predating
+# this generalization) rather than renaming to goals_for_5/goals_against_5
+# and touching every existing caller.
+ROLLING_SUM_STATS = [
+    ("goals_for", "goals_scored_5"),
+    ("goals_against", "goals_conceded_5"),
+    ("shots_for", "shots_for_5"),
+    ("shots_against", "shots_against_5"),
+    ("shots_on_target_for", "shots_on_target_for_5"),
+    ("shots_on_target_against", "shots_on_target_against_5"),
+    ("corners_for", "corners_for_5"),
+    ("corners_against", "corners_against_5"),
+    ("cards_for", "cards_for_5"),
+]
+
+
 def _long_format(matches: pd.DataFrame) -> pd.DataFrame:
     """One row per team per match (home and away), sorted by team then date."""
-    home = matches[
-        ["match_id", "Date", "season_start_year", "HomeTeam", "FTHG", "FTAG"]
-    ].copy()
-    home.columns = [
-        "match_id",
-        "Date",
-        "season_start_year",
-        "team",
-        "goals_for",
-        "goals_against",
-    ]
+    base_cols = ["match_id", "Date", "season_start_year"]
 
-    away = matches[
-        ["match_id", "Date", "season_start_year", "AwayTeam", "FTAG", "FTHG"]
-    ].copy()
-    away.columns = [
-        "match_id",
-        "Date",
-        "season_start_year",
-        "team",
-        "goals_for",
-        "goals_against",
-    ]
+    home = matches[base_cols + ["HomeTeam"]].rename(columns={"HomeTeam": "team"})
+    away = matches[base_cols + ["AwayTeam"]].rename(columns={"AwayTeam": "team"})
+
+    for stat, (home_col, away_col) in STAT_COLUMN_PAIRS.items():
+        home[f"{stat}_for"] = matches[home_col]
+        home[f"{stat}_against"] = matches[away_col]
+        away[f"{stat}_for"] = matches[away_col]
+        away[f"{stat}_against"] = matches[home_col]
+
+    # Yellow + red combined into one "cards_for" discipline indicator per
+    # team, rather than also tracking the opponent's cards - a much weaker
+    # signal that would double the number of new columns for little benefit.
+    home["cards_for"] = matches["HY"] + matches["HR"]
+    away["cards_for"] = matches["AY"] + matches["AR"]
 
     long = pd.concat([home, away], ignore_index=True)
     long["points"] = np.select(
@@ -84,12 +106,10 @@ def _add_rolling_form(long: pd.DataFrame) -> pd.DataFrame:
         long[f"form_pts_{window}"] = grp["points"].transform(
             lambda s, w=window: s.shift(1).rolling(w, min_periods=1).sum()
         )
-    long["goals_scored_5"] = grp["goals_for"].transform(
-        lambda s: s.shift(1).rolling(5, min_periods=1).sum()
-    )
-    long["goals_conceded_5"] = grp["goals_against"].transform(
-        lambda s: s.shift(1).rolling(5, min_periods=1).sum()
-    )
+    for source_col, output_col in ROLLING_SUM_STATS:
+        long[output_col] = grp[source_col].transform(
+            lambda s: s.shift(1).rolling(5, min_periods=1).sum()
+        )
 
     long["streak_after"] = grp["result"].transform(
         lambda s: pd.Series(_streak_sequence(s.tolist()), index=s.index)
@@ -228,13 +248,15 @@ def build_features(matches: pd.DataFrame) -> pd.DataFrame:
     long = _long_format(matches)
     long = _add_rolling_form(long)
 
-    form_cols = [f"form_pts_{w}" for w in FORM_WINDOWS] + [
-        "goals_scored_5",
-        "goals_conceded_5",
-        "streak_before",
-        "rest_days",
-        "matches_played_prior",
-    ]
+    form_cols = (
+        [f"form_pts_{w}" for w in FORM_WINDOWS]
+        + [output_col for _, output_col in ROLLING_SUM_STATS]
+        + [
+            "streak_before",
+            "rest_days",
+            "matches_played_prior",
+        ]
+    )
     home_side = (
         long.merge(
             matches[["match_id", "HomeTeam"]],
