@@ -152,7 +152,7 @@ def next_gameweek_fixtures(
     {"Date": datetime.date, "HomeTeam": str, "AwayTeam": str}.
     """
     if start_year is None:
-        today = dt.date.today()
+        today = dt.datetime.now(tz=dt.timezone.utc).date()
         start_year = today.year - 1 if today.month < 8 else today.year
 
     text = fetch_season_text(start_year)

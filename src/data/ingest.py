@@ -26,7 +26,9 @@ def season_start_year_for_date(d: dt.date) -> int:
 
 def latest_season_start_year(today: dt.date | None = None) -> int:
     """Start year of the most recently started season, as of `today`."""
-    return season_start_year_for_date(today or dt.date.today())
+    return season_start_year_for_date(
+        today or dt.datetime.now(tz=dt.timezone.utc).date()
+    )
 
 
 def download_season_csv(start_year: int, league_code: str = LEAGUE_CODE) -> bytes:

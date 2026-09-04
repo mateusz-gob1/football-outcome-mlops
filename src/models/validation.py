@@ -10,7 +10,8 @@ validation fold - the outer test season is never touched until the final,
 already-tuned model is evaluated on it. See tests/test_validation.py.
 """
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import pandas as pd
 from sklearn.metrics import log_loss

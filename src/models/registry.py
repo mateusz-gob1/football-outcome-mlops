@@ -15,6 +15,7 @@ import logging
 
 import mlflow
 from mlflow import MlflowClient
+from mlflow.exceptions import MlflowException
 from mlflow.models import infer_signature
 
 from src.models.evaluate import load_oof, log_loss_of
@@ -66,7 +67,7 @@ def current_production_log_loss(client: MlflowClient) -> float | None:
         version = client.get_model_version_by_alias(
             REGISTERED_MODEL_NAME, PRODUCTION_ALIAS
         )
-    except Exception:
+    except MlflowException:
         return None
     run = client.get_run(version.run_id)
     return run.data.metrics.get("candidate_mean_log_loss")

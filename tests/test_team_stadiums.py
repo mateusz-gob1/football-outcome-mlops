@@ -1,4 +1,4 @@
-import src.data.team_stadiums as team_stadiums
+from src.data import team_stadiums
 
 
 class FakeResponse:

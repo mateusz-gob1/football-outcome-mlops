@@ -15,5 +15,5 @@ httpx2>=2.5  # required by starlette.testclient (FastAPI TestClient)
 python-dotenv>=1.0
 requests>=2.31
 black>=26.5
-ruff>=0.15
+ruff==0.16.6
 pre-commit>=4.6

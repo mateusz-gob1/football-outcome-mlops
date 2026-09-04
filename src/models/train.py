@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from typing import ClassVar
 
 import mlflow
 import numpy as np
@@ -90,7 +91,7 @@ class XGBoostWrapper:
     """
 
     classes_ = np.array(["A", "D", "H"])
-    _label_to_idx = {"A": 0, "D": 1, "H": 2}
+    _label_to_idx: ClassVar[dict[str, int]] = {"A": 0, "D": 1, "H": 2}
 
     def __init__(self, params: dict):
         self.model = XGBClassifier(

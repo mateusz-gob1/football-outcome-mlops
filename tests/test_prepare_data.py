@@ -39,7 +39,7 @@ def test_build_upcoming_converts_nan_odds_to_json_null(tmp_path, monkeypatch):
     )
     # build_upcoming() reads from PROJECT_ROOT / "data/processed/reports/...",
     # so point it at a fake project root with that exact layout.
-    import frontend.prepare_data as prepare_data
+    from frontend import prepare_data
 
     reports_dir = tmp_path / "data" / "processed" / "reports"
     reports_dir.mkdir(parents=True)
@@ -63,7 +63,7 @@ def _reject_constants(value):
 def test_build_table_computes_standings_only_from_the_latest_season(
     tmp_path, monkeypatch
 ):
-    import frontend.prepare_data as prepare_data
+    from frontend import prepare_data
 
     matches = pd.DataFrame(
         [
@@ -125,7 +125,7 @@ def test_build_predictions_keeps_cold_start_matches_with_a_null_evaluated_flag(
     join). It should still show up - with null model picks and
     evaluated=False - not disappear as if the match never happened.
     """
-    import frontend.prepare_data as prepare_data
+    from frontend import prepare_data
 
     base_cols = {
         "B365H": 2.0,

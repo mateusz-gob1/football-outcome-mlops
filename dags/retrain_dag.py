@@ -19,7 +19,7 @@ from airflow.decorators import dag, task
     dag_id="football_retrain_pipeline",
     description="Ingest new results, retrain, and promote the model if it's not worse.",
     schedule="@weekly",
-    start_date=datetime.datetime(2026, 1, 1),
+    start_date=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
     catchup=False,
     tags=["football-outcome-mlops"],
 )
