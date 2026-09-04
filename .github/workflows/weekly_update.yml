@@ -1,0 +1,107 @@
+name: Weekly Update
+
+# Two cadences, one workflow:
+#   - Monday: a full retrain (ingest -> validate -> train -> evaluate ->
+#     promote-if-better) once the weekend's Premier League fixtures have
+#     finished and become new training data.
+#   - Tuesday and Friday: football-data.co.uk typically (re)publishes
+#     fixtures.csv with bookmaker odds around these days (see
+#     vault/Architecture-Decisions.md ADR-023) - just refresh the upcoming
+#     gameweek's predictions and pick up any newly published odds, without
+#     the cost of a full retrain.
+# `workflow_dispatch` covers an on-demand run of either.
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+    - cron: "0 7 * * 2,5"
+  workflow_dispatch:
+    inputs:
+      full_retrain:
+        description: "Run the full retrain pipeline instead of just refreshing predictions"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - run: pip install -r requirements.txt
+
+      - name: Decide whether this run does a full retrain
+        id: mode
+        run: |
+          if [ "${{ github.event.schedule }}" = "0 7 * * 1" ] || [ "${{ inputs.full_retrain }}" = "true" ]; then
+            echo "full_retrain=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "full_retrain=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Only the full retrain needs a registry - predict_upcoming.py fits
+      # fresh on all history directly (src/models/registry.py::fit_full_model),
+      # it never talks to MLflow. Same server invocation as ci.yml's test job.
+      - name: Start MLflow server
+        if: steps.mode.outputs.full_retrain == 'true'
+        run: |
+          mlflow server --backend-store-uri sqlite:///mlflow.db --artifacts-destination ./mlruns --host 127.0.0.1 --port 5000 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:5000 > /dev/null && exit 0
+            sleep 1
+          done
+          echo "MLflow server did not start in time" && exit 1
+
+      - name: Full retrain (ingest -> validate -> train -> evaluate -> promote)
+        if: steps.mode.outputs.full_retrain == 'true'
+        env:
+          MLFLOW_TRACKING_URI: http://127.0.0.1:5000
+        run: python -m src.pipeline.retrain_pipeline
+
+      - name: Refresh the upcoming gameweek's predictions (fixtures + odds + all 4 models)
+        run: python -m src.pipeline.predict_upcoming
+
+      - name: Regenerate frontend JSON
+        run: python -m frontend.prepare_data
+
+      - name: Commit refreshed data back to main
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/processed frontend/data
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            MODE_SUFFIX=""
+            if [ "${{ steps.mode.outputs.full_retrain }}" = "true" ]; then MODE_SUFFIX=" and retrain models"; fi
+            git commit -m "Automated update: refresh predictions${MODE_SUFFIX} [skip ci]"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Same subtree-push mechanism as the original manual deploy (ADR-020) -
+      # pushes even when the data commit above was a no-op, since app.js/style.css
+      # changes land via normal commits to main, not this job.
+      - name: Push frontend to the Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "HF_TOKEN secret is not set - skipping the Space push. See README for one-time setup." >&2
+            exit 1
+          fi
+          git remote add hf "https://Matigob:${HF_TOKEN}@huggingface.co/spaces/Matigob/football-outcome-predictor" 2>/dev/null || true
+          git subtree push --prefix=frontend hf main

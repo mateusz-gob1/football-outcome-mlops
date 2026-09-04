@@ -153,6 +153,31 @@ real bugs it caught on the way to green (ADR-014, ADR-018, ADR-019) - the
 point isn't that it worked on the first try, it's that every claim here is
 checked by a machine on every push, not asserted in prose.
 
+## Automation
+
+`.github/workflows/weekly_update.yml` keeps the live site current with no
+manual step, on two cadences:
+
+| When | What it does |
+|---|---|
+| Monday 07:00 UTC | Full retrain (`ingest → validate → train → evaluate → promote-if-better`) once the weekend's results exist to train on |
+| Tuesday & Friday 07:00 UTC | Just refreshes the upcoming gameweek's predictions and picks up any newly published bookmaker odds (football-data.co.uk usually (re)publishes around these two days - ADR-023), no retrain |
+
+Either path regenerates `frontend/data/*.json`, commits the refresh back to
+`main`, and pushes `frontend/` to the Hugging Face Space
+(`git subtree push --prefix=frontend hf main`, the same mechanism as the
+original manual deploy - ADR-020). A manual run of either cadence is
+available from the Actions tab (`workflow_dispatch`, with a "full retrain"
+checkbox). See ADR-030 for why it's one workflow with two schedules rather
+than two workflows.
+
+**One-time setup this can't do unattended:** the Space push needs an
+`HF_TOKEN` repo secret - a Hugging Face access token with write access to
+the `Matigob/football-outcome-predictor` Space, added under the GitHub
+repo's Settings → Secrets and variables → Actions. Without it, the
+predictions/data refresh still runs and commits to `main`; only the Space
+push step fails.
+
 ## Demo
 
 **Live: [matigob-football-outcome-predictor.static.hf.space](https://matigob-football-outcome-predictor.static.hf.space)** — branded **Prem Lab** on the page itself.

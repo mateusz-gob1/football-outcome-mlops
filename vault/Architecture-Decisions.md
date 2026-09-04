@@ -1059,3 +1059,51 @@ canvas** (four nav-bar directions, then reviewed live) rather than
 guessing in code - "Prem Lab" together with a 4-bar "consensus meter"
 mark (no boxed badge, no ball emoji, no pie/ring icon) is what the user
 picked out of those options.
+
+## ADR-030: Weekly automation (Phase 4) - one GitHub Actions workflow, two cadences
+
+**Decision:** `.github/workflows/weekly_update.yml` runs on two schedules
+rather than a single weekly cron, because the site has two independent
+things that go stale at different rates:
+
+- **Monday 07:00 UTC** - a full retrain (`src.pipeline.retrain_pipeline`:
+  ingest -> validate -> train -> evaluate -> promote-if-better), once the
+  weekend's Premier League results exist to train on.
+- **Tuesday and Friday 07:00 UTC** - just `src.pipeline.predict_upcoming`
+  + `frontend.prepare_data`, no retrain. football-data.co.uk typically
+  (re)publishes `fixtures.csv` with bookmaker odds around these two days
+  (ADR-023's "usually by Friday" messaging on the frontend is the same
+  observation) - this is what picks up newly published odds for a fixture
+  the site already knows about, and what would catch a postponed/rescheduled
+  fixture, without the cost of a full retrain.
+
+Both paths share one job (`github.event.schedule` picks the branch, and
+`workflow_dispatch` with a `full_retrain` checkbox covers an on-demand run
+of either) rather than two separate workflow files, since every other step
+- checkout, install, commit-and-push, the Hugging Face Space push - is
+identical either way.
+
+**Why `predict_upcoming.py` needs no MLflow server here, but the full
+retrain does:** `predict_upcoming.py` calls
+`src.models.registry.fit_full_model()`, which fits fresh directly on all
+history in-process - it was never wired to read from the MLflow registry
+(the "next gameweek" numbers shown on the site are not the same model
+object as whatever is currently tagged `production`, deliberately - see
+Architecture.md). The full retrain path exercises the real registry
+(train -> evaluate -> promote-if-better), so it needs a real tracking
+server, started the same way `ci.yml`'s `test` job already does.
+
+**Refreshed data commits back to `main` with `[skip ci]`** (data is the
+only thing that changed, re-running lint/test/docker/airflow against it
+would just re-verify code that didn't move) and the frontend is pushed to
+the Hugging Face Space via the same `git subtree push --prefix=frontend hf
+main` used for the original manual deploy (ADR-020) - a normal push each
+time now, not the one-off force-push that ADR-020 needed to get past HF's
+placeholder template.
+
+**Manual, one-time setup this can't do unattended:** a Hugging Face access
+token with write access to the Space, added as the `HF_TOKEN` secret in
+the GitHub repo's settings. Without it the workflow's data/prediction
+refresh still runs and commits to `main`; only the Space push step fails
+(with an explicit message pointing at this ADR/the README, not a silent
+skip).
