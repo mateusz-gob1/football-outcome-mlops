@@ -3,7 +3,7 @@
 [![CI](https://github.com/mateusz-gob1/football-outcome-mlops/actions/workflows/ci.yml/badge.svg)](https://github.com/mateusz-gob1/football-outcome-mlops/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-### 🔴 [**Live demo: Prem Lab →**](https://mateusz-gob1.github.io/football-outcome-mlops/)
+### [**Prem Lab →**](https://mateusz-gob1.github.io/football-outcome-mlops/)
 Real Premier League predictions from three ML models (plus their ensemble), updated automatically every matchday.
 
 Predicts football match outcomes (Home Win / Draw / Away Win) for every
