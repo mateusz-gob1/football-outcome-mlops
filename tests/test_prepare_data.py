@@ -60,16 +60,36 @@ def _reject_constants(value):
     raise ValueError(f"non-standard JSON constant encountered: {value}")
 
 
-def test_build_table_computes_standings_only_from_the_latest_season(tmp_path, monkeypatch):
+def test_build_table_computes_standings_only_from_the_latest_season(
+    tmp_path, monkeypatch
+):
     import frontend.prepare_data as prepare_data
 
     matches = pd.DataFrame(
         [
             # Older season - must be excluded entirely from the table.
-            {"season_start_year": 2024, "HomeTeam": "Arsenal", "AwayTeam": "Chelsea", "FTHG": 5, "FTAG": 0},
+            {
+                "season_start_year": 2024,
+                "HomeTeam": "Arsenal",
+                "AwayTeam": "Chelsea",
+                "FTHG": 5,
+                "FTAG": 0,
+            },
             # Current season (2025): Arsenal 2 games (W, D), Chelsea 2 games (L, D).
-            {"season_start_year": 2025, "HomeTeam": "Arsenal", "AwayTeam": "Chelsea", "FTHG": 2, "FTAG": 0},
-            {"season_start_year": 2025, "HomeTeam": "Chelsea", "AwayTeam": "Arsenal", "FTHG": 1, "FTAG": 1},
+            {
+                "season_start_year": 2025,
+                "HomeTeam": "Arsenal",
+                "AwayTeam": "Chelsea",
+                "FTHG": 2,
+                "FTAG": 0,
+            },
+            {
+                "season_start_year": 2025,
+                "HomeTeam": "Chelsea",
+                "AwayTeam": "Arsenal",
+                "FTHG": 1,
+                "FTAG": 1,
+            },
         ]
     )
     processed_dir = tmp_path / "data" / "processed"
@@ -108,11 +128,24 @@ def test_build_predictions_keeps_cold_start_matches_with_a_null_evaluated_flag(
     import frontend.prepare_data as prepare_data
 
     base_cols = {
-        "B365H": 2.0, "B365D": 3.3, "B365A": 3.6,
-        "BWH": 2.0, "BWD": 3.3, "BWA": 3.6,
-        "HS": 10, "AS": 10, "HST": 5, "AST": 5,
-        "HC": 5, "AC": 5, "HY": 1, "AY": 1, "HR": 0, "AR": 0,
-        "HxG": "", "AxG": "",
+        "B365H": 2.0,
+        "B365D": 3.3,
+        "B365A": 3.6,
+        "BWH": 2.0,
+        "BWD": 3.3,
+        "BWA": 3.6,
+        "HS": 10,
+        "AS": 10,
+        "HST": 5,
+        "AST": 5,
+        "HC": 5,
+        "AC": 5,
+        "HY": 1,
+        "AY": 1,
+        "HR": 0,
+        "AR": 0,
+        "HxG": "",
+        "AxG": "",
     }
     rows = []
     # A vs B alternate for 7 matches - by the 6th (index 5) both have 5 prior
@@ -157,10 +190,21 @@ def test_build_predictions_keeps_cold_start_matches_with_a_null_evaluated_flag(
     # an OOF row - index 7 (A vs C) is deliberately absent, exactly like the
     # real walk-forward pipeline would leave it out.
     oof = pd.DataFrame(
-        {"proba_H": [0.6, 0.6], "proba_D": [0.2, 0.2], "proba_A": [0.2, 0.2], "test_season": [2015, 2015]},
+        {
+            "proba_H": [0.6, 0.6],
+            "proba_D": [0.2, 0.2],
+            "proba_A": [0.2, 0.2],
+            "test_season": [2015, 2015],
+        },
         index=[5, 6],
     )
-    for name in ["bookmaker_baseline", "logistic_regression", "random_forest", "xgboost", "ensemble"]:
+    for name in [
+        "bookmaker_baseline",
+        "logistic_regression",
+        "random_forest",
+        "xgboost",
+        "ensemble",
+    ]:
         oof.to_csv(fold_results_dir / f"{name}_oof_predictions.csv")
 
     monkeypatch.setattr(prepare_data, "PROJECT_ROOT", tmp_path)
@@ -173,6 +217,8 @@ def test_build_predictions_keeps_cold_start_matches_with_a_null_evaluated_flag(
     assert cold_start["rf_H"] is None
     assert cold_start["actual"] == "H"  # the real result is still shown
 
-    evaluated_match = by_key[("B", "A", "2015-08-06")]  # index 5 (i=5 is odd -> home=B, away=A)
+    evaluated_match = by_key[
+        ("B", "A", "2015-08-06")
+    ]  # index 5 (i=5 is odd -> home=B, away=A)
     assert evaluated_match["evaluated"] is True
     assert evaluated_match["rf_H"] == 0.6

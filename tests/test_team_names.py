@@ -3,9 +3,21 @@ import pytest
 from src.data.team_names import normalize_openfootball_team_name
 
 KNOWN_TEAMS = {
-    "Arsenal", "Man City", "Man United", "Nott'm Forest", "QPR", "West Brom",
-    "Tottenham", "Brighton", "Wolves", "Newcastle", "West Ham", "Leicester",
-    "Bournemouth", "Ipswich", "Chelsea",
+    "Arsenal",
+    "Man City",
+    "Man United",
+    "Nott'm Forest",
+    "QPR",
+    "West Brom",
+    "Tottenham",
+    "Brighton",
+    "Wolves",
+    "Newcastle",
+    "West Ham",
+    "Leicester",
+    "Bournemouth",
+    "Ipswich",
+    "Chelsea",
 }
 
 

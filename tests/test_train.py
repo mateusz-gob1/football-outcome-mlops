@@ -24,7 +24,9 @@ def test_feature_columns_exclude_odds():
 
 
 def test_bookmaker_baseline_spec_uses_its_own_feature_columns():
-    assert MODEL_SPECS["bookmaker_baseline"]["feature_cols"] == BOOKMAKER_FEATURE_COLUMNS
+    assert (
+        MODEL_SPECS["bookmaker_baseline"]["feature_cols"] == BOOKMAKER_FEATURE_COLUMNS
+    )
     for name in ("logistic_regression", "random_forest", "xgboost"):
         assert "feature_cols" not in MODEL_SPECS[name]
 

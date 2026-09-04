@@ -14,7 +14,9 @@ class FakeResponse:
 
 
 def test_fetch_team_stadium_returns_none_without_a_venue_id(monkeypatch):
-    monkeypatch.setattr(team_stadiums, "_search_team", lambda name, retries=3: {"idVenue": None})
+    monkeypatch.setattr(
+        team_stadiums, "_search_team", lambda name, retries=3: {"idVenue": None}
+    )
     assert team_stadiums.fetch_team_stadium("Coventry") is None
 
 
@@ -27,7 +29,11 @@ def test_fetch_team_stadium_prefers_fanart_over_thumb(monkeypatch):
     monkeypatch.setattr(
         team_stadiums,
         "_search_team",
-        lambda name, retries=3: {"idVenue": "15407", "strKeywords": "The Reds", "intFormedYear": "1892"},
+        lambda name, retries=3: {
+            "idVenue": "15407",
+            "strKeywords": "The Reds",
+            "intFormedYear": "1892",
+        },
     )
     monkeypatch.setattr(
         team_stadiums.requests,
@@ -65,22 +71,37 @@ def test_club_nickname_prefers_first_keyword_and_adds_the_prefix():
 
 
 def test_fetch_team_stadium_falls_back_to_thumb_without_fanart(monkeypatch):
-    monkeypatch.setattr(team_stadiums, "_search_team", lambda name, retries=3: {"idVenue": "15407"})
+    monkeypatch.setattr(
+        team_stadiums, "_search_team", lambda name, retries=3: {"idVenue": "15407"}
+    )
     monkeypatch.setattr(
         team_stadiums.requests,
         "get",
         lambda *a, **k: FakeResponse(
-            {"venues": [{"strVenue": "Anfield", "strFanart1": "", "strThumb": "thumb.jpg", "strLocation": "x"}]}
+            {
+                "venues": [
+                    {
+                        "strVenue": "Anfield",
+                        "strFanart1": "",
+                        "strThumb": "thumb.jpg",
+                        "strLocation": "x",
+                    }
+                ]
+            }
         ),
     )
     assert team_stadiums.fetch_team_stadium("Liverpool")["image"] == "thumb.jpg"
 
 
 def test_fetch_team_stadium_returns_none_when_venue_has_no_photo(monkeypatch):
-    monkeypatch.setattr(team_stadiums, "_search_team", lambda name, retries=3: {"idVenue": "15407"})
+    monkeypatch.setattr(
+        team_stadiums, "_search_team", lambda name, retries=3: {"idVenue": "15407"}
+    )
     monkeypatch.setattr(
         team_stadiums.requests,
         "get",
-        lambda *a, **k: FakeResponse({"venues": [{"strVenue": "Anfield", "strFanart1": "", "strThumb": ""}]}),
+        lambda *a, **k: FakeResponse(
+            {"venues": [{"strVenue": "Anfield", "strFanart1": "", "strThumb": ""}]}
+        ),
     )
     assert team_stadiums.fetch_team_stadium("Liverpool") is None

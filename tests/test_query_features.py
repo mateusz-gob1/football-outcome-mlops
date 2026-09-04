@@ -18,7 +18,6 @@ from src.models.train import FEATURE_COLUMNS
 
 def _historical_matches() -> pd.DataFrame:
     rows = []
-    teams = ["Alpha", "Beta", "Gamma", "Delta"]
     pairings = [
         ("Alpha", "Beta", 2, 0),
         ("Gamma", "Delta", 1, 1),
@@ -68,10 +67,22 @@ def test_batch_prediction_matches_predicting_each_fixture_alone():
     # team pairs - the exact scenario where a naive combined-DataFrame
     # approach would let Friday's fake result leak into Sunday's features.
     friday = pd.DataFrame(
-        [{"Date": last_date + pd.Timedelta(days=5), "HomeTeam": "Alpha", "AwayTeam": "Delta"}]
+        [
+            {
+                "Date": last_date + pd.Timedelta(days=5),
+                "HomeTeam": "Alpha",
+                "AwayTeam": "Delta",
+            }
+        ]
     )
     sunday = pd.DataFrame(
-        [{"Date": last_date + pd.Timedelta(days=7), "HomeTeam": "Beta", "AwayTeam": "Gamma"}]
+        [
+            {
+                "Date": last_date + pd.Timedelta(days=7),
+                "HomeTeam": "Beta",
+                "AwayTeam": "Gamma",
+            }
+        ]
     )
     both = pd.concat([friday, sunday], ignore_index=True)
 

@@ -87,10 +87,14 @@ def _search_team(short_name: str, retries: int = 3) -> dict | None:
 
         match = _best_match(response.json().get("teams") or [])
         if match is None:
-            logger.warning("No TheSportsDB match for '%s' (query '%s')", short_name, query)
+            logger.warning(
+                "No TheSportsDB match for '%s' (query '%s')", short_name, query
+            )
         return match
 
-    logger.warning("Gave up on '%s' after %d retries (still rate limited)", short_name, retries)
+    logger.warning(
+        "Gave up on '%s' after %d retries (still rate limited)", short_name, retries
+    )
     return None
 
 

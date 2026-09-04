@@ -27,7 +27,9 @@ from src.models.train import impute_missing_features
 ODDS_COLUMNS = ["B365H", "B365D", "B365A", "BWH", "BWD", "BWA"]
 
 
-def build_query_features(historical: pd.DataFrame, fixtures: pd.DataFrame) -> pd.DataFrame:
+def build_query_features(
+    historical: pd.DataFrame, fixtures: pd.DataFrame
+) -> pd.DataFrame:
     """Compute features for one or more not-yet-played fixtures.
 
     `fixtures` needs columns Date, HomeTeam, AwayTeam, and optionally (NaN

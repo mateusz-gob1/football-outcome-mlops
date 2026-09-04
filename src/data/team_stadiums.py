@@ -49,12 +49,16 @@ def fetch_team_stadium(short_name: str, retries: int = 3) -> dict | None:
             response = requests.get(VENUE_URL, params={"id": venue_id}, timeout=20)
             if response.status_code == 429:
                 wait = 2 * (attempt + 1)
-                logger.info("Rate limited on venue for '%s', retrying in %ss", short_name, wait)
+                logger.info(
+                    "Rate limited on venue for '%s', retrying in %ss", short_name, wait
+                )
                 time.sleep(wait)
                 continue
             response.raise_for_status()
         except requests.RequestException as exc:
-            logger.warning("TheSportsDB venue lookup failed for '%s': %s", short_name, exc)
+            logger.warning(
+                "TheSportsDB venue lookup failed for '%s': %s", short_name, exc
+            )
             return None
 
         venues = response.json().get("venues") or []
@@ -76,7 +80,11 @@ def fetch_team_stadium(short_name: str, retries: int = 3) -> dict | None:
             "founded": founded,
         }
 
-    logger.warning("Gave up on venue for '%s' after %d retries (still rate limited)", short_name, retries)
+    logger.warning(
+        "Gave up on venue for '%s' after %d retries (still rate limited)",
+        short_name,
+        retries,
+    )
     return None
 
 

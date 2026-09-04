@@ -156,8 +156,12 @@ class EnsembleAverage:
 
     def __init__(self, params: dict | None = None):
         self.models = {
-            "logistic_regression": make_logreg(ENSEMBLE_MEMBER_PARAMS["logistic_regression"]),
-            "random_forest": make_random_forest(ENSEMBLE_MEMBER_PARAMS["random_forest"]),
+            "logistic_regression": make_logreg(
+                ENSEMBLE_MEMBER_PARAMS["logistic_regression"]
+            ),
+            "random_forest": make_random_forest(
+                ENSEMBLE_MEMBER_PARAMS["random_forest"]
+            ),
             "xgboost": XGBoostWrapper(ENSEMBLE_MEMBER_PARAMS["xgboost"]),
         }
 

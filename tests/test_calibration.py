@@ -54,9 +54,9 @@ def test_recalibrated_probabilities_still_sum_to_one():
             "proba_A": rng.uniform(0.1, 0.4, size=n),
         }
     )
-    oof[["proba_H", "proba_D", "proba_A"]] = oof[
-        ["proba_H", "proba_D", "proba_A"]
-    ].div(oof[["proba_H", "proba_D", "proba_A"]].sum(axis=1), axis=0)
+    oof[["proba_H", "proba_D", "proba_A"]] = oof[["proba_H", "proba_D", "proba_A"]].div(
+        oof[["proba_H", "proba_D", "proba_A"]].sum(axis=1), axis=0
+    )
 
     recalibrated = {
         cls: _recalibrate_one_class(

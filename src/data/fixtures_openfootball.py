@@ -35,15 +35,25 @@ MONTHS = {
     name: i + 1
     for i, name in enumerate(
         [
-            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
         ]
     )
 }
 
 
 def season_code(start_year: int) -> str:
-    """"2026-27" style folder name openfootball uses for a season starting in `start_year`."""
+    """ "2026-27" style folder name openfootball uses for a season starting in `start_year`."""
     return f"{start_year}-{(start_year + 1) % 100:02d}"
 
 
@@ -95,7 +105,9 @@ def parse_fixtures(text: str, start_year: int) -> list[dict]:
         if day_match:
             month_abbr, day_str, year_str = day_match.groups()
             month = MONTHS[month_abbr]
-            year = int(year_str) if year_str else (start_year if month >= 8 else end_year)
+            year = (
+                int(year_str) if year_str else (start_year if month >= 8 else end_year)
+            )
             current_date = dt.date(year, month, int(day_str))
             continue
 
@@ -129,7 +141,9 @@ def select_next_gameweek(fixtures: list[dict]) -> list[dict]:
     return [f for f in fixtures if f["matchday"] == target and not f["played"]]
 
 
-def next_gameweek_fixtures(known_teams: set, start_year: int | None = None) -> list[dict]:
+def next_gameweek_fixtures(
+    known_teams: set, start_year: int | None = None
+) -> list[dict]:
     """Return the next unplayed Premier League gameweek's fixtures.
 
     Team names are normalized onto football-data.co.uk's naming (see
@@ -147,7 +161,9 @@ def next_gameweek_fixtures(known_teams: set, start_year: int | None = None) -> l
 
     if not gameweek:
         logger.warning(
-            "No unplayed fixtures found in the %s-%s season file", start_year, start_year + 1
+            "No unplayed fixtures found in the %s-%s season file",
+            start_year,
+            start_year + 1,
         )
         return []
 
@@ -160,6 +176,11 @@ def next_gameweek_fixtures(known_teams: set, start_year: int | None = None) -> l
             logger.warning("Skipping fixture %s v %s: %s", f["home"], f["away"], exc)
             continue
         result.append(
-            {"Date": f["date"], "HomeTeam": home, "AwayTeam": away, "Matchday": f["matchday"]}
+            {
+                "Date": f["date"],
+                "HomeTeam": home,
+                "AwayTeam": away,
+                "Matchday": f["matchday"],
+            }
         )
     return result

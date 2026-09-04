@@ -24,7 +24,9 @@ from src.models.validation import CLASSES
 logger = logging.getLogger(__name__)
 
 
-def _recalibrate_one_class(probs: np.ndarray, actual: np.ndarray, method: str) -> np.ndarray:
+def _recalibrate_one_class(
+    probs: np.ndarray, actual: np.ndarray, method: str
+) -> np.ndarray:
     if method == "isotonic":
         model = IsotonicRegression(out_of_bounds="clip")
         return model.fit_transform(probs, actual)
@@ -58,9 +60,18 @@ def recalibrated_log_loss(oof: pd.DataFrame, method: str) -> float:
     return log_loss(oof["true_label"], matrix, labels=CLASSES)
 
 
-def _fit_and_apply(train_probs: np.ndarray, train_actual: np.ndarray, test_probs: np.ndarray, method: str) -> np.ndarray:
+def _fit_and_apply(
+    train_probs: np.ndarray,
+    train_actual: np.ndarray,
+    test_probs: np.ndarray,
+    method: str,
+) -> np.ndarray:
     if method == "isotonic":
-        return IsotonicRegression(out_of_bounds="clip").fit(train_probs, train_actual).predict(test_probs)
+        return (
+            IsotonicRegression(out_of_bounds="clip")
+            .fit(train_probs, train_actual)
+            .predict(test_probs)
+        )
     if method == "platt":
         model = LogisticRegression().fit(train_probs.reshape(-1, 1), train_actual)
         return model.predict_proba(test_probs.reshape(-1, 1))[:, 1]

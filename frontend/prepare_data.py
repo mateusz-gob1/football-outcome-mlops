@@ -58,19 +58,42 @@ def build_predictions() -> list[dict]:
     # (only available from 2026/27 onward, so it's null for older matches).
     meta = features[features["season_start_year"] >= min_evaluated_season][
         [
-            "Date", "HomeTeam", "AwayTeam", "season_start_year", "FTR", "FTHG", "FTAG",
-            "HS", "AS", "HST", "AST", "HC", "AC", "HY", "AY", "HR", "AR",
-            "HxG", "AxG",
+            "Date",
+            "HomeTeam",
+            "AwayTeam",
+            "season_start_year",
+            "FTR",
+            "FTHG",
+            "FTAG",
+            "HS",
+            "AS",
+            "HST",
+            "AST",
+            "HC",
+            "AC",
+            "HY",
+            "AY",
+            "HR",
+            "AR",
+            "HxG",
+            "AxG",
         ]
     ].rename(
         columns={
-            "HomeTeam": "home", "AwayTeam": "away",
-            "season_start_year": "season", "FTR": "actual",
-            "FTHG": "home_goals", "FTAG": "away_goals",
-            "HS": "home_shots", "AS": "away_shots",
-            "HST": "home_shots_on_target", "AST": "away_shots_on_target",
-            "HC": "home_corners", "AC": "away_corners",
-            "HxG": "home_xg", "AxG": "away_xg",
+            "HomeTeam": "home",
+            "AwayTeam": "away",
+            "season_start_year": "season",
+            "FTR": "actual",
+            "FTHG": "home_goals",
+            "FTAG": "away_goals",
+            "HS": "home_shots",
+            "AS": "away_shots",
+            "HST": "home_shots_on_target",
+            "AST": "away_shots_on_target",
+            "HC": "home_corners",
+            "AC": "away_corners",
+            "HxG": "home_xg",
+            "AxG": "away_xg",
         }
     )
     meta["home_cards"] = features["HY"] + features["HR"]
@@ -86,7 +109,8 @@ def build_predictions() -> list[dict]:
 
     for model_name, prefix in MODEL_PREFIXES.items():
         oof = pd.read_csv(
-            PROJECT_ROOT / f"data/processed/fold_results/{model_name}_oof_predictions.csv",
+            PROJECT_ROOT
+            / f"data/processed/fold_results/{model_name}_oof_predictions.csv",
             index_col=0,
         )
         combined = combined.join(
@@ -104,15 +128,32 @@ def build_predictions() -> list[dict]:
     combined["evaluated"] = combined["rf_H"].notna()
 
     stat_cols = [
-        "home_goals", "away_goals",
-        "home_shots", "away_shots",
-        "home_shots_on_target", "away_shots_on_target",
-        "home_corners", "away_corners",
-        "home_cards", "away_cards",
-        "home_xg", "away_xg",
+        "home_goals",
+        "away_goals",
+        "home_shots",
+        "away_shots",
+        "home_shots_on_target",
+        "away_shots_on_target",
+        "home_corners",
+        "away_corners",
+        "home_cards",
+        "away_cards",
+        "home_xg",
+        "away_xg",
     ]
     model_cols = [f"{p}_{c}" for p in [*MODEL_PREFIXES.values(), "book"] for c in "HDA"]
-    combined = combined[["date", "home", "away", "season", "evaluated", *model_cols, "actual", *stat_cols]]
+    combined = combined[
+        [
+            "date",
+            "home",
+            "away",
+            "season",
+            "evaluated",
+            *model_cols,
+            "actual",
+            *stat_cols,
+        ]
+    ]
     for col in model_cols:
         combined[col] = combined[col].round(4)
     for col in ("home_xg", "away_xg"):
@@ -169,12 +210,18 @@ def build_table() -> list[dict]:
     season_matches = matches[matches["season_start_year"] == current_season]
 
     rows = []
-    for team in sorted(set(season_matches["HomeTeam"]) | set(season_matches["AwayTeam"])):
+    for team in sorted(
+        set(season_matches["HomeTeam"]) | set(season_matches["AwayTeam"])
+    ):
         home = season_matches[season_matches["HomeTeam"] == team]
         away = season_matches[season_matches["AwayTeam"] == team]
         played = len(home) + len(away)
-        won = int((home["FTHG"] > home["FTAG"]).sum() + (away["FTAG"] > away["FTHG"]).sum())
-        drawn = int((home["FTHG"] == home["FTAG"]).sum() + (away["FTHG"] == away["FTAG"]).sum())
+        won = int(
+            (home["FTHG"] > home["FTAG"]).sum() + (away["FTAG"] > away["FTHG"]).sum()
+        )
+        drawn = int(
+            (home["FTHG"] == home["FTAG"]).sum() + (away["FTHG"] == away["FTAG"]).sum()
+        )
         lost = played - won - drawn
         gf = int(home["FTHG"].sum() + away["FTAG"].sum())
         ga = int(home["FTAG"].sum() + away["FTHG"].sum())
@@ -192,9 +239,11 @@ def build_table() -> list[dict]:
             }
         )
 
-    table = pd.DataFrame(rows).sort_values(
-        ["points", "gd", "gf"], ascending=False
-    ).reset_index(drop=True)
+    table = (
+        pd.DataFrame(rows)
+        .sort_values(["points", "gd", "gf"], ascending=False)
+        .reset_index(drop=True)
+    )
     table["position"] = table.index + 1
     return table.to_dict(orient="records")
 

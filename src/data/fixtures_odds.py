@@ -31,7 +31,11 @@ def fetch_fixtures_odds() -> pd.DataFrame:
         response = requests.get(FIXTURES_CSV_URL, timeout=30)
         response.raise_for_status()
     except requests.RequestException as exc:
-        logger.warning("Could not fetch %s (%s) - proceeding without pre-match odds", FIXTURES_CSV_URL, exc)
+        logger.warning(
+            "Could not fetch %s (%s) - proceeding without pre-match odds",
+            FIXTURES_CSV_URL,
+            exc,
+        )
         return pd.DataFrame(columns=["HomeTeam", "AwayTeam", *ODDS_COLUMNS])
 
     # football-data.co.uk serves this file as UTF-8 with a BOM, but doesn't
@@ -45,7 +49,9 @@ def fetch_fixtures_odds() -> pd.DataFrame:
         logger.info("football-data.co.uk fixtures.csv has no %s rows yet", LEAGUE_CODE)
         return pd.DataFrame(columns=["HomeTeam", "AwayTeam", *ODDS_COLUMNS])
 
-    keep = ["HomeTeam", "AwayTeam"] + [c for c in ODDS_COLUMNS if c in pl_fixtures.columns]
+    keep = ["HomeTeam", "AwayTeam"] + [
+        c for c in ODDS_COLUMNS if c in pl_fixtures.columns
+    ]
     return pl_fixtures[keep]
 
 
