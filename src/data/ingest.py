@@ -2,6 +2,7 @@
 
 import datetime as dt
 import logging
+import time
 from pathlib import Path
 
 import requests
@@ -31,12 +32,30 @@ def latest_season_start_year(today: dt.date | None = None) -> int:
     )
 
 
-def download_season_csv(start_year: int, league_code: str = LEAGUE_CODE) -> bytes:
-    """Fetch one season's raw CSV bytes from football-data.co.uk."""
+TRANSIENT_STATUS_CODES = {429, 500, 502, 503, 504}
+
+
+def download_season_csv(
+    start_year: int, league_code: str = LEAGUE_CODE, retries: int = 3
+) -> bytes:
+    """Fetch one season's raw CSV bytes from football-data.co.uk.
+
+    Retried with backoff on transient errors (rate limiting, momentary
+    outages) - this runs unattended on a schedule now (weekly_update.yml),
+    where a single 503 on any one of 16+ season requests would otherwise
+    fail the whole run for a reason that would have gone away on its own a
+    few seconds later.
+    """
     url = f"{BASE_URL}/{season_code(start_year)}/{league_code}.csv"
-    response = requests.get(url, timeout=30)
-    response.raise_for_status()
-    return response.content
+    for attempt in range(retries):
+        response = requests.get(url, timeout=30)
+        if response.status_code in TRANSIENT_STATUS_CODES and attempt < retries - 1:
+            wait = 2 * (attempt + 1)
+            logger.info("%s for %s, retrying in %ss", response.status_code, url, wait)
+            time.sleep(wait)
+            continue
+        response.raise_for_status()
+        return response.content
 
 
 def ingest(

@@ -1,19 +1,22 @@
-name: Weekly Update
+name: Daily Update
 
-# Two cadences, one workflow:
-#   - Monday: a full retrain (ingest -> validate -> train -> evaluate ->
-#     promote-if-better) once the weekend's Premier League fixtures have
-#     finished and become new training data.
-#   - Tuesday and Friday: football-data.co.uk typically (re)publishes
-#     fixtures.csv with bookmaker odds around these days (see
-#     vault/Architecture-Decisions.md ADR-023) - just refresh the upcoming
-#     gameweek's predictions and pick up any newly published odds, without
-#     the cost of a full retrain.
+# One daily cadence, two cost levels:
+#   - Every day: refresh the upcoming gameweek's predictions and pick up
+#     any newly published bookmaker odds (football-data.co.uk updates
+#     fixtures.csv at its own pace - see ADR-023 - a daily check catches
+#     it quickly whenever it happens, not just on specific days).
+#   - Monday specifically: also a full retrain (ingest -> validate -> train
+#     -> evaluate -> promote-if-better), once the weekend's Premier League
+#     fixtures have finished and become new training data.
+# Running daily (ADR-032) rather than 2-3x/week also means a single missed
+# or delayed GitHub Actions schedule trigger - which does happen; see
+# ADR-032 - only costs a day of staleness instead of most of a week.
 # `workflow_dispatch` covers an on-demand run of either.
 on:
   schedule:
-    - cron: "0 7 * * 1"
-    - cron: "0 7 * * 2,5"
+    # Not top-of-the-hour on purpose - GitHub's own docs note scheduled
+    # runs are more likely to be delayed right at :00.
+    - cron: "13 6 * * *"
   workflow_dispatch:
     inputs:
       full_retrain:
@@ -27,7 +30,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: weekly-update
+  group: daily-update
   cancel-in-progress: false
 
 jobs:
@@ -47,7 +50,7 @@ jobs:
       - name: Decide whether this run does a full retrain
         id: mode
         run: |
-          if [ "${{ github.event.schedule }}" = "0 7 * * 1" ] || [ "${{ inputs.full_retrain }}" = "true" ]; then
+          if [ "$(date -u +%u)" = "1" ] || [ "${{ inputs.full_retrain }}" = "true" ]; then
             echo "full_retrain=true" >> "$GITHUB_OUTPUT"
           else
             echo "full_retrain=false" >> "$GITHUB_OUTPUT"

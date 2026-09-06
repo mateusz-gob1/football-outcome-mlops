@@ -1142,3 +1142,44 @@ longer pushed to - deleting it is a manual, destructive action on an
 external account this project doesn't automate, and the Space costs
 nothing sitting idle. The README's live link now points at GitHub Pages
 only.
+
+## ADR-032: Weekly automation moved to daily, and a real bug it exposed
+
+**Decision:** `weekly_update.yml` (ADR-030) is renamed `daily_update.yml`
+and runs once a day (`13 6 * * *` - a non-top-of-the-hour minute, since
+GitHub's own docs note scheduled runs are more likely delayed right at
+`:00`) instead of Monday/Tuesday/Friday. Monday specifically still also
+does the full retrain; every other day is the lighter predictions-only
+refresh. The Monday check itself changed too - from matching
+`github.event.schedule` against an exact cron string (broke the moment
+there was only one schedule entry) to `date -u +%u = 1`, which is
+simpler and works identically for a scheduled run or a manual
+`workflow_dispatch`.
+
+**Why:** two problems surfaced in the same day the workflow first went
+live. First, **the schedule never fired at all** - `gh workflow view`
+showed zero total runs days after the Monday and Friday cron times had
+both passed, despite the workflow being registered as `active` with
+correct cron syntax, the right default branch, and no permissions issue
+- a known, if infrequent, GitHub Actions scheduler gap where a
+newly-added `schedule` trigger can silently miss its first occurrence(s).
+There's no way to make GitHub's scheduler itself more reliable from
+inside the repo; running daily instead of 2-3x/week is a direct hedge
+against it - a missed trigger now costs at most a day of staleness
+instead of most of a week. Second, once triggered manually to unblock
+the live site, **the real pipeline failed too**: `src.data.ingest`
+downloads 16+ separate season CSVs from football-data.co.uk with no
+retry, and hit a transient `503` on one of them - a request that would
+very likely have succeeded seconds later. This wasn't a scheduling
+problem, it was a real robustness gap that unattended, scheduled
+execution exposed immediately (a human re-running the command by hand
+never would have noticed, since they'd just try again).
+
+**Fix:** `download_season_csv()` now retries with backoff (2s, 4s) on
+429/500/502/503/504, matching the pattern `src/data/team_badges.py` and
+`src/data/team_stadiums.py` already use for TheSportsDB - and still fails
+immediately, no retry, on a genuine error (404, bad data) rather than
+masking it.
+`tests/test_ingest.py` locks in both halves: a transient error followed
+by success returns the content, and a non-transient error makes exactly
+one request (no wasted retries on something retrying can't fix).

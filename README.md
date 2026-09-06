@@ -147,7 +147,7 @@ claimed to work: **[see live runs →](https://github.com/mateusz-gob1/football-
 | Job | What it actually does |
 |---|---|
 | `lint` | `black --check` + `ruff check` across the whole codebase |
-| `test` | Fresh `ingest → validate → train → registry` run, then all 60 `pytest` tests |
+| `test` | Fresh `ingest → validate → train → registry` run, then all 63 `pytest` tests |
 | `docker` | Builds both images, brings up MinIO + MLflow, registers a real model against them, starts the API, and curls `/health` + `/predict` |
 | `airflow` | Builds the Airflow image, starts it, and **triggers the actual DAG** - all 5 tasks run to completion, not just "the file parses" |
 
@@ -158,22 +158,22 @@ checked by a machine on every push, not asserted in prose.
 
 ## Automation
 
-`.github/workflows/weekly_update.yml` keeps the live site current with no
-manual step, on two cadences:
+`.github/workflows/daily_update.yml` keeps the live site current with no
+manual step, every day at 06:13 UTC:
 
-| When | What it does |
+| Day | What it does |
 |---|---|
-| Monday 07:00 UTC | Full retrain (`ingest → validate → train → evaluate → promote-if-better`) once the weekend's results exist to train on |
-| Tuesday & Friday 07:00 UTC | Just refreshes the upcoming gameweek's predictions and picks up any newly published bookmaker odds (football-data.co.uk usually (re)publishes around these two days - ADR-023), no retrain |
+| Every day | Refreshes the upcoming gameweek's predictions and picks up any newly published bookmaker odds (football-data.co.uk updates fixtures.csv at its own pace - ADR-023) |
+| Monday specifically | Also a full retrain (`ingest → validate → train → evaluate → promote-if-better`), once the weekend's results exist to train on |
 
 Either path regenerates `frontend/data/*.json`, commits the refresh back to
 `main`, and redeploys `frontend/` to GitHub Pages (a call to
 `.github/workflows/deploy-pages.yml`, the same workflow that redeploys on
 every ordinary push to `main` touching `frontend/`). A manual run of
 either cadence is available from the Actions tab (`workflow_dispatch`,
-with a "full retrain" checkbox). See ADR-030 for why it's one workflow
-with two schedules rather than two, and ADR-031 for why Pages rather than
-the original Hugging Face Space.
+with a "full retrain" checkbox). See ADR-030 for the original two-cadence
+design, ADR-031 for why Pages rather than the original Hugging Face
+Space, and ADR-032 for why this moved from 2-3x/week to daily.
 
 No secrets or one-time setup needed for this - GitHub Pages deploys with
 the workflow's own built-in token, since it's hosted on the same platform
@@ -230,12 +230,14 @@ python -m frontend.prepare_stadiums       # -> frontend/data/team_stadiums.json
 pytest
 ```
 
-60 tests: leak-free feature engineering (rolling stats, as-of table position,
+63 tests: leak-free feature engineering (rolling stats, as-of table position,
 cold-start, H2H window), walk-forward validation (nested tuning never touches
 the outer test season), the odds/no-odds feature split (ADR-022 - the
 bookmaker baseline must keep working on its own dedicated feature list), the
 API (valid predictions, unknown team / zero-history / bad-input error
-handling), the upcoming-fixture pipeline (openfootball parsing, team-name
+handling), ingest's retry-with-backoff on a transient football-data.co.uk
+error vs. failing fast on a real one (ADR-032), the upcoming-fixture
+pipeline (openfootball parsing, team-name
 normalization, bookmaker-odds attachment, and a regression test proving a
 whole gameweek's fixtures are featurized independently - no cross-fixture
 leakage into table position/form), the frontend's badge- and stadium-matching

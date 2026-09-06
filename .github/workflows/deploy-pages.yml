@@ -4,7 +4,7 @@ name: Deploy Pages
 # ADR-031: moved off a Hugging Face Space, which needs a manual redeploy to
 # pick up new content and isn't otherwise ever prompted to). Triggered
 # directly whenever frontend/ changes on main, and called as a job from
-# weekly_update.yml after each automated data refresh.
+# daily_update.yml after each automated data refresh.
 on:
   push:
     branches: [main]
