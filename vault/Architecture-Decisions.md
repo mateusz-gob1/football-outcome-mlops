@@ -1183,3 +1183,39 @@ masking it.
 `tests/test_ingest.py` locks in both halves: a transient error followed
 by success returns the content, and a non-transient error makes exactly
 one request (no wasted retries on something retrying can't fix).
+
+## ADR-033: Daily results refresh, decoupled from the weekly retrain
+
+**Decision:** `daily_update.yml` now runs `src.data.ingest` +
+`src.data.validate` every day (not just as part of Monday's full
+retrain), then `src.pipeline.predict_upcoming` and
+`frontend.prepare_data` as before. The expensive part - `src.models.train`
+-> `src.models.evaluate` -> `src.models.registry` - stays Monday-only,
+gated on the ingest step having actually succeeded that run
+(`steps.ingest.outcome == 'success'`).
+
+**Why:** the user asked, reasonably, whether a completed match's result
+should show up sooner than "wait until next Monday." Checking what
+actually depends on a full retrain versus plain data: `build_table()` in
+`frontend/prepare_data.py` builds the league table directly from
+`matches_validated.csv` - no model involved - so a fresh daily ingest
+alone makes the table, matches-analyzed count, and last-gameweek recap
+current the day after a match finishes, midweek fixtures included, not
+just after the weekend. Only the *model's own pick* for a newly-played
+match (in Past Predictions) still waits for the next retrain - that's
+inherent to walk-forward validation, not something the ingest cadence can
+fix: a match hasn't been fitted into a fold's out-of-fold predictions
+until it's actually retrained, so it shows up with the real score and
+`evaluated: false` (the same graceful degrade already built for
+cold-start matches) rather than a fabricated pick.
+
+**`continue-on-error: true` on the ingest step, deliberately:** the same
+day this was written, football-data.co.uk had a real (if brief)
+outage of its own - see ADR-032's `503`, and this one returning a
+courteous `Retry-After: 285` header the client wasn't reading yet
+(now it is, capped at 90s - see `download_season_csv`). A source having a
+bad day shouldn't take the whole daily update down with it: predictions
+and odds still refresh and the site still redeploys against yesterday's
+match data, and only the retrain step (which would just be retraining on
+nothing new anyway, if ingest didn't get anything new) is skipped for
+that run.

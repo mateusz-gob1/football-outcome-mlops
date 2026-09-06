@@ -33,6 +33,7 @@ def latest_season_start_year(today: dt.date | None = None) -> int:
 
 
 TRANSIENT_STATUS_CODES = {429, 500, 502, 503, 504}
+MAX_RETRY_AFTER_SECONDS = 90  # cap how long one request can hold up the whole ingest
 
 
 def download_season_csv(
@@ -41,16 +42,24 @@ def download_season_csv(
     """Fetch one season's raw CSV bytes from football-data.co.uk.
 
     Retried with backoff on transient errors (rate limiting, momentary
-    outages) - this runs unattended on a schedule now (weekly_update.yml),
+    outages) - this runs unattended on a schedule now (daily_update.yml),
     where a single 503 on any one of 16+ season requests would otherwise
     fail the whole run for a reason that would have gone away on its own a
-    few seconds later.
+    few seconds later. Honors the server's own `Retry-After` header when it
+    sends one (capped at MAX_RETRY_AFTER_SECONDS - a multi-minute site-wide
+    outage shouldn't hang the whole pipeline waiting on one file), falling
+    back to a short exponential backoff when it doesn't.
     """
     url = f"{BASE_URL}/{season_code(start_year)}/{league_code}.csv"
     for attempt in range(retries):
         response = requests.get(url, timeout=30)
         if response.status_code in TRANSIENT_STATUS_CODES and attempt < retries - 1:
-            wait = 2 * (attempt + 1)
+            retry_after = response.headers.get("Retry-After")
+            wait = (
+                min(int(retry_after), MAX_RETRY_AFTER_SECONDS)
+                if retry_after and retry_after.isdigit()
+                else 2 * (attempt + 1)
+            )
             logger.info("%s for %s, retrying in %ss", response.status_code, url, wait)
             time.sleep(wait)
             continue

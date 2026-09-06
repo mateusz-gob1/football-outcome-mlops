@@ -1,13 +1,14 @@
 name: Daily Update
 
 # One daily cadence, two cost levels:
-#   - Every day: refresh the upcoming gameweek's predictions and pick up
-#     any newly published bookmaker odds (football-data.co.uk updates
-#     fixtures.csv at its own pace - see ADR-023 - a daily check catches
-#     it quickly whenever it happens, not just on specific days).
-#   - Monday specifically: also a full retrain (ingest -> validate -> train
-#     -> evaluate -> promote-if-better), once the weekend's Premier League
-#     fixtures have finished and become new training data.
+#   - Every day: re-ingest match results (so a completed midweek fixture
+#     shows up in the league table/recap the next day, not only after
+#     Monday's retrain - ADR-033), then refresh the upcoming gameweek's
+#     predictions and pick up any newly published bookmaker odds
+#     (football-data.co.uk updates fixtures.csv at its own pace - ADR-023).
+#   - Monday specifically: also the expensive part - train -> evaluate ->
+#     promote-if-better - once the weekend's Premier League fixtures have
+#     finished and become new training data worth retraining on.
 # Running daily (ADR-032) rather than 2-3x/week also means a single missed
 # or delayed GitHub Actions schedule trigger - which does happen; see
 # ADR-032 - only costs a day of staleness instead of most of a week.
@@ -56,11 +57,25 @@ jobs:
             echo "full_retrain=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Every day, not just Monday, so a completed midweek fixture shows up
+      # in the league table/recap the next day instead of waiting on the
+      # next full retrain (ADR-033). continue-on-error: football-data.co.uk
+      # does have real, if brief, outages of its own (see ADR-032/033) - one
+      # bad day here shouldn't block the rest of the update from running
+      # against yesterday's data, only skip the retrain step below (which
+      # would be training on nothing new anyway if this failed).
+      - name: Refresh match results (ingest -> validate)
+        id: ingest
+        continue-on-error: true
+        run: |
+          python -m src.data.ingest
+          python -m src.data.validate
+
       # Only the full retrain needs a registry - predict_upcoming.py fits
       # fresh on all history directly (src/models/registry.py::fit_full_model),
       # it never talks to MLflow. Same server invocation as ci.yml's test job.
       - name: Start MLflow server
-        if: steps.mode.outputs.full_retrain == 'true'
+        if: steps.mode.outputs.full_retrain == 'true' && steps.ingest.outcome == 'success'
         run: |
           mlflow server --backend-store-uri sqlite:///mlflow.db --artifacts-destination ./mlruns --host 127.0.0.1 --port 5000 &
           for i in $(seq 1 30); do
@@ -69,11 +84,14 @@ jobs:
           done
           echo "MLflow server did not start in time" && exit 1
 
-      - name: Full retrain (ingest -> validate -> train -> evaluate -> promote)
-        if: steps.mode.outputs.full_retrain == 'true'
+      - name: Full retrain (train -> evaluate -> promote)
+        if: steps.mode.outputs.full_retrain == 'true' && steps.ingest.outcome == 'success'
         env:
           MLFLOW_TRACKING_URI: http://127.0.0.1:5000
-        run: python -m src.pipeline.retrain_pipeline
+        run: |
+          python -m src.models.train
+          python -m src.models.evaluate
+          python -m src.models.registry
 
       - name: Refresh the upcoming gameweek's predictions (fixtures + odds + all 4 models)
         run: python -m src.pipeline.predict_upcoming
