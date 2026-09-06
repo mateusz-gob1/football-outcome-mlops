@@ -371,6 +371,19 @@ function expectedOddsDay(dateStr) {
   return [5, 6, 0, 1].includes(day) ? "Friday" : "Tuesday";
 }
 
+// Once the match's own date has arrived with still no odds, "usually by
+// Friday" has already turned out to be wrong for this fixture - promising
+// a day that's already passed (or is passing) reads as broken, not
+// informative, so drop the guess and just say it's unavailable.
+function bookmakerUnavailableHtml(dateStr) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const matchDate = new Date(`${dateStr}T00:00:00`);
+  return matchDate <= today
+    ? `<span class="odds-unavailable">not available</span>`
+    : `<span class="odds-unavailable">not published yet (usually by ${expectedOddsDay(dateStr)})</span>`;
+}
+
 const TAB_IDS = ["upcoming", "browse", "performance"];
 
 function activatePanel(panelId) {
@@ -439,7 +452,7 @@ function renderUpcoming(fixtures) {
             const { label, prob } = bestPick(f, "book");
             return `<span class="pick-${label}">${label} &middot; ${formatPct(prob)}</span>`;
           })()
-        : `<span class="odds-unavailable">not published yet (usually by ${expectedOddsDay(f.date)})</span>`;
+        : bookmakerUnavailableHtml(f.date);
 
       const historyNote = f.insufficient_history
         ? `<div class="history-note">One of these teams has limited match history. Treat this prediction as lower-confidence.</div>`
