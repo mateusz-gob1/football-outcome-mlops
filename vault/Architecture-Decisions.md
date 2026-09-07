@@ -1219,3 +1219,50 @@ and odds still refresh and the site still redeploys against yesterday's
 match data, and only the retrain step (which would just be retraining on
 nothing new anyway, if ingest didn't get anything new) is skipped for
 that run.
+
+## ADR-034: football-data.co.uk blocks cloud/datacenter IPs - moved ingest to a GitHub-hosted mirror
+
+**Decision:** Replaced `src/data/ingest.py`'s direct football-data.co.uk
+downloads with `xgabora/Club-Football-Match-Data`
+(github.com/xgabora/Club-Football-Match-Data), an MIT-licensed, actively
+updated GitHub repository mirroring the same football-data.co.uk numbers
+(results, shots, corners, cards, Bet365 odds) across many leagues.
+`ingest()`'s output contract is unchanged - it still writes one
+`data/raw/E0_XXXX.csv` per season with football-data.co.uk's original
+column names (`Date`, `FTHG`, `HS`, `B365H`, ...) - so nothing downstream
+(`src/data/validate.py`, `src/features/build_features.py`, every test
+that touches raw season files) needed to change. The 45MB combined table
+is downloaded once per process and cached in memory
+(`fetch_combined_matches()`), then sliced per season - not once per
+season, which would have re-downloaded it 16+ times for one `ingest()`
+run.
+
+**Why - what ADR-032/033 mis-diagnosed as "an outage":** ADR-032/033
+treated football-data.co.uk's `503`s as a transient, self-resolving
+outage. It wasn't. Over 16 hours later, `curl` from this project's
+sandbox environment (and separately, navigating there in the Claude
+Browser pane - different infrastructure, more browser-like request
+shape) both still got `503` on the plain homepage, not just the CSV
+endpoints - while the user's own browser, on their own residential
+connection, loaded the same homepage instantly (screenshot compared side
+by side). Same URL, same moment, opposite results depending entirely on
+which network the request came from. That is not a server outage - a
+server that is actually down doesn't work for anyone. It's an
+IP/ASN-level block on cloud and datacenter traffic (GitHub Actions
+runners included - see the CI failure logs from ADR-032/033, all the
+same `503` on the same URL), which retrying harder or waiting longer was
+never going to fix, transient-error retry logic included.
+
+**BW (Bet&Win) odds are gone, deliberately left empty rather than
+substituted:** the new source only carries Bet365 + a cross-bookmaker
+max, no Bet&Win specifically. `src/data/validate.py`'s
+`OPTIONAL_COLUMNS` was already designed to tolerate this exact shape
+(ADR-012's "falls back to B365 alone when missing" path, originally
+built for partial BW gaps in a couple of real seasons) - the migration
+just means that path is now always taken instead of occasionally.
+Verified end-to-end against the real source: a full re-ingest across all
+17 seasons validates cleanly (expected BW-missing warnings only, no
+`ValidationError`), 6,100 matches total (16 complete seasons at 380 each
+plus the opening rounds of 2026/27) - and, unlike football-data.co.uk
+directly, this source is actually reachable from GitHub Actions, so the
+daily automation (ADR-030/032/033) can once again see real results.
