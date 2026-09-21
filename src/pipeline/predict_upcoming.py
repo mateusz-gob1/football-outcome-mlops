@@ -95,11 +95,27 @@ def predict_upcoming_gameweek(
     return result.reset_index(drop=True)
 
 
+def archive_predictions(predictions: pd.DataFrame, path: Path) -> None:
+    """Keep every fixture's latest pre-match forecast.
+
+    upcoming_predictions.csv is overwritten each run, so once a match is
+    played its forecast would be gone; the archive is what lets the site
+    show "what the models said" for results that arrived before the next
+    retrain produced out-of-fold picks. The latest run before kickoff wins.
+    """
+    keys = ["date", "home", "away"]
+    if path.exists():
+        predictions = pd.concat([pd.read_csv(path), predictions], ignore_index=True)
+    predictions = predictions.drop_duplicates(keys, keep="last").sort_values(keys)
+    predictions.to_csv(path, index=False)
+
+
 def run() -> Path:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     predictions = predict_upcoming_gameweek()
     path = REPORTS_DIR / "upcoming_predictions.csv"
     predictions.to_csv(path, index=False)
+    archive_predictions(predictions, REPORTS_DIR / "prediction_archive.csv")
     logger.info("Saved %s (%d fixtures)", path, len(predictions))
     return path
 

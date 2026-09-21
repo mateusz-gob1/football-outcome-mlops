@@ -62,6 +62,32 @@ def _openfootball_extra_results(matches: pd.DataFrame) -> pd.DataFrame:
     return extra
 
 
+def _fill_from_archive(records: list[dict]) -> None:
+    """Attach archived pre-match forecasts to results that have no model picks.
+
+    Matches played since the last retrain have no out-of-fold prediction yet,
+    but the models did forecast them before kickoff (prediction_archive.csv).
+    These are genuine out-of-sample picks, so they count as evaluated; once
+    a retrain produces out-of-fold picks those take over.
+    """
+    path = PROJECT_ROOT / "data/processed/reports/prediction_archive.csv"
+    if not path.exists():
+        return
+    archive = pd.read_csv(path).set_index(["date", "home", "away"])
+    cols = [f"{p}_{c}" for p in [*MODEL_PREFIXES.values(), "book"] for c in "HDA"]
+    for record in records:
+        if record.get("evaluated") is not False or record.get("rf_H") is not None:
+            continue
+        key = (record["date"], record["home"], record["away"])
+        if key not in archive.index:
+            continue
+        row = archive.loc[key]
+        for col in cols:
+            value = row.get(col)
+            record[col] = None if pd.isna(value) else round(float(value), 4)
+        record["evaluated"] = record["rf_H"] is not None
+
+
 def build_predictions() -> list[dict]:
     from src.features.build_features import build_features
 
@@ -210,6 +236,7 @@ def build_predictions() -> list[dict]:
         )
         records.append(record)
     records.sort(key=lambda r: r["date"])
+    _fill_from_archive(records)
 
     for record in records:
         for key, value in record.items():

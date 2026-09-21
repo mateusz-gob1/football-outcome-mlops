@@ -271,3 +271,44 @@ def test_build_predictions_keeps_cold_start_matches_with_a_null_evaluated_flag(
     ]  # index 5 (i=5 is odd -> home=B, away=A)
     assert evaluated_match["evaluated"] is True
     assert evaluated_match["rf_H"] == 0.6
+
+
+def test_fill_from_archive_gives_played_matches_their_prematch_picks(
+    tmp_path, monkeypatch
+):
+    from frontend import prepare_data
+
+    reports = tmp_path / "data" / "processed" / "reports"
+    reports.mkdir(parents=True)
+    pd.DataFrame(
+        [
+            {
+                "date": "2026-09-19",
+                "home": "A",
+                "away": "B",
+                "rf_H": 0.5,
+                "rf_D": 0.3,
+                "rf_A": 0.2,
+            }
+        ]
+    ).to_csv(reports / "prediction_archive.csv", index=False)
+    monkeypatch.setattr(prepare_data, "PROJECT_ROOT", tmp_path)
+    played = {
+        "date": "2026-09-19",
+        "home": "A",
+        "away": "B",
+        "evaluated": False,
+        "rf_H": None,
+    }
+    other = {
+        "date": "2026-09-19",
+        "home": "C",
+        "away": "D",
+        "evaluated": False,
+        "rf_H": None,
+    }
+
+    prepare_data._fill_from_archive([played, other])
+
+    assert played["rf_H"] == 0.5 and played["evaluated"] is True
+    assert other["rf_H"] is None and other["evaluated"] is False

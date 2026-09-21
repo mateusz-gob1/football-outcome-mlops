@@ -1296,3 +1296,17 @@ results list (marked `evaluated: false`, no model picks). Display only:
 these rows have no shots/odds, so they never enter training, and once
 football-data catches up its row wins (matched on date + teams). If
 openfootball is unreachable the supplement is skipped silently.
+
+## ADR-037: Archive pre-match forecasts so fresh results show model picks
+
+Results overlaid from openfootball (ADR-036) showed "–" for every model:
+out-of-fold picks only exist after the weekly retrain, and
+`upcoming_predictions.csv` is overwritten each run, so the forecast the
+models made before kickoff was thrown away. `predict_upcoming` now also
+merges each run into `prediction_archive.csv` (latest pre-kickoff forecast
+per fixture wins), seeded once from the git history of that file
+(only versions committed on or before match day). `prepare_data` attaches
+archived picks to played matches lacking out-of-fold picks and counts them
+as evaluated - they are genuine out-of-sample forecasts. After a retrain the
+out-of-fold picks take over. Gap: the bot commits only when data changes, so
+a fixture whose only forecast was made after kickoff stays blank.
