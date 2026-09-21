@@ -64,8 +64,10 @@ def fetch_season_text(start_year: int) -> str:
     return response.text
 
 
-def _parse_match_line(line: str) -> tuple[str, str, bool] | None:
-    """Parse one fixture line into (home, away, played). None if the line isn't a fixture."""
+def _parse_match_line(
+    line: str,
+) -> tuple[str, str, bool, tuple[int, int] | None] | None:
+    """Parse one fixture line into (home, away, played, full-time score). None if not a fixture."""
     time_match = TIME_RE.match(line)
     rest = time_match.group(2) if time_match else line.strip()
     if " v " not in rest:
@@ -75,10 +77,13 @@ def _parse_match_line(line: str) -> tuple[str, str, bool] | None:
     if score_match:
         away = remainder[: score_match.start()].strip()
         played = True
+        ft = score_match.group(1).split("(")[0].strip().split("-")
+        score = (int(ft[0]), int(ft[1]))
     else:
         away = remainder.strip()
         played = False
-    return home.strip(), away, played
+        score = None
+    return home.strip(), away, played, score
 
 
 def parse_fixtures(text: str, start_year: int) -> list[dict]:
@@ -114,7 +119,7 @@ def parse_fixtures(text: str, start_year: int) -> list[dict]:
         parsed = _parse_match_line(line)
         if parsed is None or current_date is None or current_matchday is None:
             continue
-        home, away, played = parsed
+        home, away, played, score = parsed
         fixtures.append(
             {
                 "matchday": current_matchday,
@@ -122,6 +127,7 @@ def parse_fixtures(text: str, start_year: int) -> list[dict]:
                 "home": home,
                 "away": away,
                 "played": played,
+                "score": score,
             }
         )
 
@@ -184,3 +190,37 @@ def next_gameweek_fixtures(
             }
         )
     return result
+
+
+def fetch_played_results(known_teams: set, start_year: int | None = None) -> list[dict]:
+    """Completed matches with scores, names normalized to football-data's.
+
+    openfootball records results within a day or two, often before
+    football-data.co.uk does - used only to keep the table/results display
+    current (no shots/odds here, so never a model input).
+    """
+    if start_year is None:
+        today = dt.datetime.now(tz=dt.timezone.utc).date()
+        start_year = today.year - 1 if today.month < 8 else today.year
+    fixtures = parse_fixtures(fetch_season_text(start_year), start_year)
+    results = []
+    for f in fixtures:
+        if not f["played"] or f["score"] is None:
+            continue
+        try:
+            home = normalize_openfootball_team_name(f["home"], known_teams)
+            away = normalize_openfootball_team_name(f["away"], known_teams)
+        except ValueError:
+            continue
+        hg, ag = f["score"]
+        results.append(
+            {
+                "Date": f["date"],
+                "HomeTeam": home,
+                "AwayTeam": away,
+                "FTHG": hg,
+                "FTAG": ag,
+                "FTR": "H" if hg > ag else "A" if hg < ag else "D",
+            }
+        )
+    return results

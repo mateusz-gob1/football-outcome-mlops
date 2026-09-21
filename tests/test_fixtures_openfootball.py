@@ -46,6 +46,7 @@ def test_parse_fixtures_extracts_matchday_date_teams_and_played_flag():
         "home": "Arsenal FC",
         "away": "Coventry City FC",
         "played": True,
+        "score": (3, 0),
     }
 
     unplayed = [f for f in fixtures if not f["played"]]
@@ -90,3 +91,15 @@ def test_select_next_gameweek_returns_empty_when_everything_is_played():
 """
     fixtures = parse_fixtures(text, start_year=2026)
     assert select_next_gameweek(fixtures) == []
+
+
+def test_parse_fixtures_keeps_the_full_time_score_of_played_matches():
+    text = (
+        "▪ Matchday 4\n"
+        "  Sat Sep 12\n"
+        "    15:00  Crystal Palace FC       v Ipswich Town FC          2-3 (1-2)\n"
+        "           Liverpool FC            v Fulham FC\n"
+    )
+    played, unplayed = parse_fixtures(text, 2026)
+    assert played["played"] and played["score"] == (2, 3)
+    assert not unplayed["played"] and unplayed["score"] is None

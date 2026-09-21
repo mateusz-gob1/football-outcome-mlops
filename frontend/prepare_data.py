@@ -14,6 +14,7 @@ import math
 from pathlib import Path
 
 import pandas as pd
+import requests
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = Path(__file__).resolve().parent / "data"
@@ -26,6 +27,39 @@ MODEL_PREFIXES = {
     "xgboost": "xgb",
     "ensemble": "ens",
 }
+
+
+def _openfootball_extra_results(matches: pd.DataFrame) -> pd.DataFrame:
+    """Recent results openfootball has but matches_validated doesn't (yet).
+
+    football-data.co.uk lags a few days behind; keeps the table and results
+    list current meanwhile. Silent no-op if openfootball can't be reached.
+    """
+    from src.data.fixtures_openfootball import fetch_played_results
+
+    try:
+        known = set(matches["HomeTeam"]) | set(matches["AwayTeam"])
+        played = pd.DataFrame(fetch_played_results(known))
+    except (requests.RequestException, ValueError, KeyError) as exc:
+        print(f"openfootball supplement skipped: {exc}")
+        return pd.DataFrame()
+    if played.empty:
+        return played
+    played["Date"] = pd.to_datetime(played["Date"])
+    have = set(
+        zip(
+            pd.to_datetime(matches["Date"]),
+            matches["HomeTeam"],
+            matches["AwayTeam"],
+        )
+    )
+    keep = [
+        (d, h, a) not in have
+        for d, h, a in zip(played["Date"], played["HomeTeam"], played["AwayTeam"])
+    ]
+    extra = played[keep].copy()
+    extra["season_start_year"] = matches["season_start_year"].max()
+    return extra
 
 
 def build_predictions() -> list[dict]:
@@ -160,6 +194,23 @@ def build_predictions() -> list[dict]:
         combined[col] = combined[col].round(2)
 
     records = combined.sort_values("date").to_dict(orient="records")
+
+    extra = _openfootball_extra_results(matches)
+    for row in extra.itertuples():
+        record = {c: None for c in combined.columns}
+        record.update(
+            date=row.Date.strftime("%Y-%m-%d"),
+            home=row.HomeTeam,
+            away=row.AwayTeam,
+            season=int(row.season_start_year),
+            evaluated=False,
+            actual=row.FTR,
+            home_goals=row.FTHG,
+            away_goals=row.FTAG,
+        )
+        records.append(record)
+    records.sort(key=lambda r: r["date"])
+
     for record in records:
         for key, value in record.items():
             if isinstance(value, float) and math.isnan(value):
@@ -206,6 +257,9 @@ def build_table() -> list[dict]:
     it's computed directly here rather than reusing that function.
     """
     matches = pd.read_csv(PROJECT_ROOT / "data/processed/matches_validated.csv")
+    matches = pd.concat(
+        [matches, _openfootball_extra_results(matches)], ignore_index=True
+    )
     current_season = matches["season_start_year"].max()
     season_matches = matches[matches["season_start_year"] == current_season]
 

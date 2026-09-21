@@ -9,8 +9,57 @@ those to None (-> JSON null) instead.
 import json
 
 import pandas as pd
+import pytest
 
 from frontend.prepare_data import build_predictions, build_table, build_upcoming
+
+
+@pytest.fixture(autouse=True)
+def _no_openfootball_network(monkeypatch):
+    from frontend import prepare_data
+
+    monkeypatch.setattr(
+        prepare_data, "_openfootball_extra_results", lambda matches: pd.DataFrame()
+    )
+
+
+def test_openfootball_extras_skip_matches_already_in_the_data(monkeypatch):
+    from frontend import prepare_data
+
+    monkeypatch.undo()
+    played = [
+        {
+            "Date": "2026-09-12",
+            "HomeTeam": "A",
+            "AwayTeam": "B",
+            "FTHG": 1,
+            "FTAG": 0,
+            "FTR": "H",
+        },
+        {
+            "Date": "2026-09-19",
+            "HomeTeam": "C",
+            "AwayTeam": "D",
+            "FTHG": 2,
+            "FTAG": 2,
+            "FTR": "D",
+        },
+    ]
+    monkeypatch.setattr(
+        "src.data.fixtures_openfootball.fetch_played_results", lambda known: played
+    )
+    matches = pd.DataFrame(
+        {
+            "Date": ["2026-09-12"],
+            "HomeTeam": ["A"],
+            "AwayTeam": ["B"],
+            "season_start_year": [2026],
+        }
+    )
+
+    extra = prepare_data._openfootball_extra_results(matches)
+
+    assert list(extra["HomeTeam"]) == ["C"]
 
 
 def test_build_upcoming_converts_nan_odds_to_json_null(tmp_path, monkeypatch):

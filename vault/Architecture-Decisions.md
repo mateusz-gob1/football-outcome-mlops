@@ -1285,3 +1285,14 @@ carry BW odds and the original schema, so nothing downstream changes.
 **Lesson:** a green pipeline is not a fresh pipeline - "no error" said
 nothing about the source going stale. Worth a freshness check later
 (alert when the newest match date lags the calendar by more than ~10 days).
+
+## ADR-036: Overlay openfootball results on the table and results list
+
+football-data.co.uk lags a few days behind matches (matchweek 5 ended 20 Sep;
+its file stopped at 14 Sep), while openfootball/england had every score
+within a day. `frontend/prepare_data.py` now adds openfootball results that
+`matches_validated.csv` doesn't have yet to the league table and the
+results list (marked `evaluated: false`, no model picks). Display only:
+these rows have no shots/odds, so they never enter training, and once
+football-data catches up its row wins (matched on date + teams). If
+openfootball is unreachable the supplement is skipped silently.
