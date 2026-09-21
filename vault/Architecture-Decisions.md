@@ -1266,3 +1266,22 @@ Verified end-to-end against the real source: a full re-ingest across all
 plus the opening rounds of 2026/27) - and, unlike football-data.co.uk
 directly, this source is actually reachable from GitHub Actions, so the
 daily automation (ADR-030/032/033) can once again see real results.
+
+## ADR-035: Direct football-data.co.uk first, mirror as fallback (mirror was 2 weeks stale)
+
+**Problem:** the league table stopped updating. The daily workflow was green
+every day, but `matches_validated.csv` stopped at 2026-08-31: the
+xgabora mirror adopted in ADR-034 is refreshed only "periodically" by its
+maintainer (last commit 2026-09-06, ~2 weeks behind at the time), and
+football-data.co.uk itself - reachable again from the sandbox - already had
+results through 2026-09-14.
+
+**Decision:** `download_season_csv()` now tries football-data.co.uk directly
+(2 attempts) and only falls back to the mirror when that fails
+(`_download_season_from_mirror`). Best of both: fresh results when the site
+is reachable, still working when it blocks cloud IPs (ADR-034). Direct files
+carry BW odds and the original schema, so nothing downstream changes.
+
+**Lesson:** a green pipeline is not a fresh pipeline - "no error" said
+nothing about the source going stale. Worth a freshness check later
+(alert when the newest match date lags the calendar by more than ~10 days).

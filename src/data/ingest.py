@@ -157,8 +157,28 @@ def fetch_combined_matches(retries: int = 3, use_cache: bool = True) -> pd.DataF
     return df
 
 
+DIRECT_BASE_URL = "https://www.football-data.co.uk/mmz4281"
+
+
 def download_season_csv(start_year: int, retries: int = 3) -> bytes:
-    """Return one season's raw CSV bytes, sliced from the combined match table."""
+    """Return one season's raw CSV bytes.
+
+    football-data.co.uk first: it's the primary source and updates within a
+    day or two of matches, while the GitHub mirror is only refreshed
+    periodically by its maintainer (found ~2 weeks stale - ADR-035). Falls
+    back to the mirror when the direct site is unreachable (it has blocked
+    cloud IPs at times - ADR-034).
+    """
+    url = f"{DIRECT_BASE_URL}/{season_code(start_year)}/{LEAGUE_CODE}.csv"
+    try:
+        return _get_with_retry(url, retries=2)
+    except requests.RequestException as exc:
+        logger.warning("Direct download failed for %s (%s) - using mirror", url, exc)
+    return _download_season_from_mirror(start_year, retries)
+
+
+def _download_season_from_mirror(start_year: int, retries: int = 3) -> bytes:
+    """One season's CSV bytes, sliced from the combined GitHub-hosted match table."""
     matches = fetch_combined_matches(retries=retries)
     season_start = pd.Timestamp(year=start_year, month=8, day=1)
     season_end = pd.Timestamp(year=start_year + 1, month=7, day=31)

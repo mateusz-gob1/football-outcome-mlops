@@ -89,7 +89,7 @@ def test_download_season_csv_filters_to_premier_league_and_the_right_season(
     monkeypatch.setattr(ingest, "_matches_cache", None)
     monkeypatch.setattr(ingest, "_get_with_retry", lambda *a, **k: _fake_combined_csv())
 
-    content = ingest.download_season_csv(2010)
+    content = ingest._download_season_from_mirror(2010)
     df = pd.read_csv(pd.io.common.BytesIO(content))
 
     assert len(df) == 1
@@ -114,3 +114,19 @@ def test_fetch_combined_matches_is_cached_across_calls(monkeypatch):
     ingest.fetch_combined_matches()
 
     assert len(calls) == 1
+
+
+def test_download_season_csv_prefers_the_direct_source(monkeypatch):
+    monkeypatch.setattr(ingest, "_get_with_retry", lambda *a, **k: b"direct")
+    assert ingest.download_season_csv(2026) == b"direct"
+
+
+def test_download_season_csv_falls_back_to_the_mirror(monkeypatch):
+    def blocked(*a, **k):
+        raise ingest.requests.exceptions.HTTPError("503")
+
+    monkeypatch.setattr(ingest, "_get_with_retry", blocked)
+    monkeypatch.setattr(
+        ingest, "_download_season_from_mirror", lambda *a, **k: b"mirror"
+    )
+    assert ingest.download_season_csv(2026) == b"mirror"
