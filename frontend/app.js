@@ -417,20 +417,12 @@ function renderTabs() {
   window.addEventListener("hashchange", route);
 }
 
-function renderUpcoming(fixtures) {
-  const grid = document.getElementById("upcoming-grid");
-  const empty = document.getElementById("upcoming-empty");
-
-  if (!fixtures.length) {
-    empty.hidden = false;
-    grid.innerHTML = "";
-    return;
-  }
-  empty.hidden = true;
-
-  grid.innerHTML = fixtures
-    .map((f) => {
-      const modelRows = MODEL_PREFIXES.map((prefix) => {
+// One match's card: used for the upcoming grid and, with `result`, for the
+// hover/click popover on any past match in the season.
+function matchCardHtml(f, { result = null } = {}) {
+  const hasPicks = f.rf_H !== null && f.rf_H !== undefined;
+  const modelRows = hasPicks
+    ? MODEL_PREFIXES.map((prefix) => {
         const { label, prob } = bestPick(f, prefix);
         const segments = ["Home", "Draw", "Away"]
           .map(
@@ -445,47 +437,129 @@ function renderUpcoming(fixtures) {
           </div>
           <div class="prob-bar">${segments}</div>
         </div>`;
-      }).join("");
+      }).join("")
+    : `<p class="note">No model predictions for this match (not enough history at the time, or played since the last retrain).</p>`;
 
-      const bookmakerLine = f.odds_available
-        ? (() => {
-            const { label, prob } = bestPick(f, "book");
-            return `<span class="pick-${label}">${label} &middot; ${formatPct(prob)}</span>`;
-          })()
-        : bookmakerUnavailableHtml(f.date);
+  const oddsAvailable = f.odds_available ?? (f.book_H !== null && f.book_H !== undefined);
+  const bookmakerLine = oddsAvailable
+    ? (() => {
+        const { label, prob } = bestPick(f, "book");
+        return `<span class="pick-${label}">${label} &middot; ${formatPct(prob)}</span>`;
+      })()
+    : bookmakerUnavailableHtml(f.date);
 
-      const historyNote = f.insufficient_history
-        ? `<div class="history-note">One of these teams has limited match history. Treat this prediction as lower-confidence.</div>`
-        : "";
+  const historyNote = f.insufficient_history
+    ? `<div class="history-note">One of these teams has limited match history. Treat this prediction as lower-confidence.</div>`
+    : "";
 
-      const homeForm = formBeforeDate(f.home, f.date);
-      const awayForm = formBeforeDate(f.away, f.date);
-      const h2h = headToHead(f.home, f.away, f.date);
-      const h2hLine = h2h.meetings.length
-        ? `H2H (last ${h2h.meetings.length}): ${h2h.record.W}W&ndash;${h2h.record.D}D&ndash;${h2h.record.L}L`
-        : `H2H: no previous meetings on record`;
+  const homeForm = formBeforeDate(f.home, f.date);
+  const awayForm = formBeforeDate(f.away, f.date);
+  const h2h = headToHead(f.home, f.away, f.date);
+  const h2hLine = h2h.meetings.length
+    ? `H2H (last ${h2h.meetings.length}): ${h2h.record.W}W&ndash;${h2h.record.D}D&ndash;${h2h.record.L}L`
+    : `H2H: no previous meetings on record`;
+  const resultLine = result
+    ? `<div class="match-result">Final score <strong>${result.home_goals}&ndash;${result.away_goals}</strong></div>`
+    : "";
 
-      return `<article class="match-card">
-        <div class="match-date">${formatMatchDate(f.date)}</div>
-        <div class="match-teams">
-          ${teamLinkHtml(f.home)}
-          <span class="vs">vs</span>
-          ${teamLinkHtml(f.away)}
-        </div>
-        <div class="form-row">
-          <span class="form-dots">${formDotsHtml(homeForm)}</span>
-          <span class="form-dots form-dots-right">${formDotsHtml(awayForm)}</span>
-        </div>
-        <div class="model-rows">${modelRows}</div>
-        <div class="bookmaker-row">
-          <span class="bookmaker-label">Bookmaker pick</span>
-          ${bookmakerLine}
-        </div>
-        <div class="h2h-line note">${h2hLine} (${f.home}'s record)</div>
-        ${historyNote}
-      </article>`;
-    })
-    .join("");
+  return `<article class="match-card">
+    <div class="match-date">${formatMatchDate(f.date)}</div>
+    <div class="match-teams">
+      ${teamLinkHtml(f.home)}
+      <span class="vs">vs</span>
+      ${teamLinkHtml(f.away)}
+    </div>
+    ${resultLine}
+    <div class="form-row">
+      <span class="form-dots">${formDotsHtml(homeForm)}</span>
+      <span class="form-dots form-dots-right">${formDotsHtml(awayForm)}</span>
+    </div>
+    <div class="model-rows">${modelRows}</div>
+    <div class="bookmaker-row">
+      <span class="bookmaker-label">Bookmaker pick</span>
+      ${bookmakerLine}
+    </div>
+    <div class="h2h-line note">${h2hLine} (${f.home}'s record)</div>
+    ${historyNote}
+  </article>`;
+}
+
+// Any past match in the results tables opens the same card on hover (mouse)
+// or click (touch/pinned) - rows carry data-match="date|home|away".
+function matchRowAttr(m) {
+  return `data-match="${m.date}|${m.home}|${m.away}"`;
+}
+
+let matchPopover = null;
+let matchPopoverPinned = false;
+
+function showMatchPopover(row, x, y, pinned) {
+  const [date, home, away] = row.dataset.match.split("|");
+  const record = predictions.find((p) => p.date === date && p.home === home && p.away === away);
+  if (!record) return;
+  if (!matchPopover) {
+    matchPopover = document.createElement("div");
+    matchPopover.className = "match-popover";
+    document.body.appendChild(matchPopover);
+  }
+  matchPopover.innerHTML = matchCardHtml(record, { result: record });
+  attachBadgeFallbacks(matchPopover);
+  matchPopover.classList.toggle("pinned", pinned);
+  matchPopover.classList.add("open");
+  matchPopoverPinned = pinned;
+  const w = matchPopover.offsetWidth;
+  const h = matchPopover.offsetHeight;
+  matchPopover.style.left = `${Math.max(8, Math.min(x + 16, window.innerWidth - w - 8))}px`;
+  matchPopover.style.top = `${Math.max(8, Math.min(y + 16, window.innerHeight - h - 8))}px`;
+}
+
+function hideMatchPopover() {
+  if (matchPopover) matchPopover.classList.remove("open", "pinned");
+  matchPopoverPinned = false;
+}
+
+function initMatchPopover() {
+  document.addEventListener("mouseover", (e) => {
+    if (matchPopoverPinned) return;
+    const row = e.target.closest("tr[data-match]");
+    if (row) showMatchPopover(row, e.clientX, e.clientY, false);
+  });
+  document.addEventListener("mouseout", (e) => {
+    if (matchPopoverPinned) return;
+    if (e.target.closest("tr[data-match]") && !e.relatedTarget?.closest?.("tr[data-match]")) {
+      hideMatchPopover();
+    }
+  });
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("a")) {
+      hideMatchPopover();
+      return;
+    }
+    const row = e.target.closest("tr[data-match]");
+    if (row) {
+      showMatchPopover(row, e.clientX, e.clientY, true);
+    } else if (!e.target.closest(".match-popover")) {
+      hideMatchPopover();
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") hideMatchPopover();
+  });
+  window.addEventListener("hashchange", hideMatchPopover);
+}
+
+function renderUpcoming(fixtures) {
+  const grid = document.getElementById("upcoming-grid");
+  const empty = document.getElementById("upcoming-empty");
+
+  if (!fixtures.length) {
+    empty.hidden = false;
+    grid.innerHTML = "";
+    return;
+  }
+  empty.hidden = true;
+
+  grid.innerHTML = fixtures.map((f) => matchCardHtml(f)).join("");
 
   attachBadgeFallbacks(grid);
 }
@@ -539,7 +613,7 @@ function renderTable() {
       // Shown with the real result but neutral "n/a" picks, rather than
       // silently dropped from a team's history (the gap a user spotted).
       if (r.evaluated === false) {
-        return `<tr>
+        return `<tr ${matchRowAttr(r)}>
           <td>${r.date}</td>
           <td>${teamLinkHtml(r.home, { withBadge: false })}</td>
           <td>${teamLinkHtml(r.away, { withBadge: false })}</td>
@@ -558,7 +632,7 @@ function renderTable() {
       if (modelOk) modelCorrect++;
       if (bookOk) bookCorrect++;
 
-      return `<tr>
+      return `<tr ${matchRowAttr(r)}>
         <td>${r.date}</td>
         <td>${teamLinkHtml(r.home, { withBadge: false })}</td>
         <td>${teamLinkHtml(r.away, { withBadge: false })}</td>
@@ -710,6 +784,7 @@ async function init() {
   teamBadges = badges;
   teamStadiums = stadiums;
 
+  initMatchPopover();
   renderUpcoming(upcoming);
   renderConsensusChart(upcoming);
   renderLeagueTable(table);
@@ -864,7 +939,7 @@ function renderLastGameweekRecap() {
                 const ok = pickFor(m, p)[0] === m.actual;
                 return `<td class="${ok ? "mark-correct" : "mark-wrong"}">${ok ? "✓" : "✗"}</td>`;
               }).join("");
-        return `<tr>
+        return `<tr ${matchRowAttr(m)}>
           <td>${teamLinkHtml(m.home, { withBadge: false })} <span class="note">vs</span> ${teamLinkHtml(m.away, { withBadge: false })}</td>
           <td>${m.home_goals}&ndash;${m.away_goals}</td>
           ${cells}
@@ -1081,7 +1156,7 @@ function renderTeamPage(name) {
                 const modelOk = pickFor(p, "rf")[0] === p.actual;
                 return `<td class="${modelOk ? "mark-correct" : "mark-wrong"}">${modelOk ? "✓" : "✗"}</td>`;
               })();
-        return `<tr>
+        return `<tr ${matchRowAttr(p)}>
           <td>${p.date}</td>
           <td>${isHome ? "vs" : "@"} ${opponent}</td>
           <td class="${outcomeClass}">${teamGoals}&ndash;${oppGoals}</td>

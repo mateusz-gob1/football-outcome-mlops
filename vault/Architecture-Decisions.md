@@ -1310,3 +1310,14 @@ archived picks to played matches lacking out-of-fold picks and counts them
 as evaluated - they are genuine out-of-sample forecasts. After a retrain the
 out-of-fold picks take over. Gap: the bot commits only when data changes, so
 a fixture whose only forecast was made after kickoff stays blank.
+
+## ADR-038: Match card popover on every past result
+
+Any row in Past Predictions, the team page's recent form, and the last-gameweek
+recap now carries `data-match="date|home|away"`; hovering (mouse) or clicking
+(touch, pins it) shows the same card as an upcoming fixture - form before the
+match, each model's pick and probabilities, bookmaker, H2H - plus the final
+score. The card markup was extracted from `renderUpcoming` into
+`matchCardHtml()` so both use one implementation. Matches with no model
+picks say so instead of showing empty bars. Data comes from `predictions.json`,
+so it covers the whole evaluated history, not only the current season.
