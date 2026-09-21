@@ -23,7 +23,7 @@ let teamBadges = {};
 let teamStadiums = {};
 
 async function loadJSON(path) {
-  const res = await fetch(path);
+  const res = await fetch(path, { cache: "no-cache" });
   return res.json();
 }
 
