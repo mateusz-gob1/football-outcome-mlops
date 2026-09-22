@@ -115,6 +115,14 @@ def register_and_promote(candidate_log_loss: float | None = None) -> dict:
             registered_model_name=REGISTERED_MODEL_NAME,
             signature=signature,
             input_example=data[FEATURE_COLUMNS].head(3),
+            # skops (mlflow's sklearn serialization format) refuses to load
+            # sklearn.tree._tree.Tree by default as of mlflow 3.14 - it can
+            # be unsafe for a file of unknown origin, but this one is a
+            # model we just trained ourselves in the line above, not
+            # something loaded from outside. Needed for any tree ensemble
+            # (RandomForest*, GradientBoosting*, ...), not just today's
+            # candidate.
+            skops_trusted_types=["sklearn.tree._tree.Tree"],
         )
 
     new_version = str(model_info.registered_model_version)
