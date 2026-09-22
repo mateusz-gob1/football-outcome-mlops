@@ -1,6 +1,8 @@
 services:
   minio:
-    image: minio/minio:latest
+    # Docker Hub archived minio/minio (and minio/mc, below) on 2026-04-25 and no
+    # longer serves pulls for it - same tags are still published on quay.io.
+    image: quay.io/minio/minio:latest
     ports:
       - "9000:9000" # S3 API
       - "9001:9001" # web console
@@ -20,7 +22,7 @@ services:
   # One-shot: creates the bucket mlflow will write artifacts to, then exits.
   # `mlflow server` does not create its own S3 bucket - see ADR-019.
   minio-init:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     depends_on:
       minio:
         condition: service_healthy
