@@ -1321,3 +1321,35 @@ score. The card markup was extracted from `renderUpcoming` into
 `matchCardHtml()` so both use one implementation. Matches with no model
 picks say so instead of showing empty bars. Data comes from `predictions.json`,
 so it covers the whole evaluated history, not only the current season.
+
+## ADR-039: Trust sklearn tree internals in MLflow's skops serialization
+
+CI's `test` job started failing on every run from 2026-09-21: `mlflow.sklearn.
+log_model()` raised `MlflowException: The saved sklearn model references
+untrusted types ... ['sklearn.tree._tree.Tree']`. mlflow 3.14 switched its
+sklearn save format to skops, which by default refuses to (de)serialize a
+list of sklearn internals it can't vouch for - including the shared node
+storage every tree-ensemble model (RandomForest, GradientBoosting, ...)
+uses - since a skops file of unknown origin could smuggle arbitrary code
+through those types. That's a legitimate default, not a bug: the fix is to
+declare `skops_trusted_types=["sklearn.tree._tree.Tree"]` on the one
+`log_model()` call in `src/models/registry.py`, not to pin mlflow back -
+the model being trusted is one this same function just trained, not a file
+loaded from outside. `mlflow.sklearn.load_model()` needs no equivalent
+change; trust is recorded at save time and read back automatically.
+Verified by reproducing CI's exact `ingest -> validate -> train -> registry`
+sequence against a real local `mlflow server`, then the full pytest suite
+against that same server (`test_retrain_pipeline.py`'s integration test
+expects a production-aliased model to already exist - it isn't self-seeding,
+so running pytest in isolation against an empty registry fails for an
+unrelated reason and shouldn't be mistaken for this bug).
+
+## ADR-040: MinIO images moved from Docker Hub to quay.io
+
+The `docker` CI job started failing separately (once ADR-039's fix was in):
+`docker compose up` couldn't pull `minio/minio` or `minio/mc` - "pull access
+denied ... repository does not exist". Docker Hub archived both repos on
+2026-04-25 (widely reported, not specific to this project); the same tags
+are still published on `quay.io/minio/minio` and `quay.io/minio/mc`, so
+`docker-compose.yml` now points there instead. No other file referenced the
+Docker Hub image names.
