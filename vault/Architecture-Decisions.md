@@ -1353,3 +1353,22 @@ denied ... repository does not exist". Docker Hub archived both repos on
 are still published on `quay.io/minio/minio` and `quay.io/minio/mc`, so
 `docker-compose.yml` now points there instead. No other file referenced the
 Docker Hub image names.
+
+## ADR-041: skops_trusted_types is opt-in, guarded by a signature check
+
+ADR-039's fix broke the CI `airflow` job in turn: `promote_if_better`
+started raising `TypeError: log_model() got an unexpected keyword argument
+'skops_trusted_types'`. The Airflow image (`requirements-airflow.txt`) has
+always resolved to an older mlflow than the main `requirements.txt` - both
+say `mlflow>=2.12`, but installing against Airflow 2.10.4's own constraints
+file (ADR-018) forces the resolver down to mlflow 3.2.0, which predates the
+param (and predates skops as the default sklearn format entirely, so it
+never needed one). Pinning `mlflow>=3.14` in requirements-airflow.txt to
+force a newer version turned out to be unsolvable - mlflow>=3.14 requires
+`cryptography>=43.0.0`, and Airflow's constraints pin `cryptography==42.0.8`
+(confirmed with a dry-run pip install against that constraints file before
+concluding this). Rather than fight that conflict, `register_and_promote()`
+now checks `inspect.signature(mlflow.sklearn.log_model).parameters` and
+only passes `skops_trusted_types` when the installed mlflow supports it -
+correct in both environments, since the param is meaningless (and absent)
+exactly where skops isn't the active serialization format.

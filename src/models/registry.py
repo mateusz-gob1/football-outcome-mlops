@@ -11,6 +11,7 @@ promoted version's - the same "promote only if better" guard the Phase 2
 retraining pipeline will reuse.
 """
 
+import inspect
 import logging
 
 import mlflow
@@ -109,12 +110,11 @@ def register_and_promote(candidate_log_loss: float | None = None) -> dict:
         signature = infer_signature(
             data[FEATURE_COLUMNS], model.predict_proba(data[FEATURE_COLUMNS])
         )
-        model_info = mlflow.sklearn.log_model(
-            model,
-            name="model",
-            registered_model_name=REGISTERED_MODEL_NAME,
-            signature=signature,
-            input_example=data[FEATURE_COLUMNS].head(3),
+        log_model_kwargs = {}
+        if (
+            "skops_trusted_types"
+            in inspect.signature(mlflow.sklearn.log_model).parameters
+        ):
             # skops (mlflow's sklearn serialization format) refuses to load
             # sklearn.tree._tree.Tree by default as of mlflow 3.14 - it can
             # be unsafe for a file of unknown origin, but this one is a
@@ -122,7 +122,20 @@ def register_and_promote(candidate_log_loss: float | None = None) -> dict:
             # something loaded from outside. Needed for any tree ensemble
             # (RandomForest*, GradientBoosting*, ...), not just today's
             # candidate.
-            skops_trusted_types=["sklearn.tree._tree.Tree"],
+            #
+            # Guarded by a signature check rather than passed unconditionally:
+            # the Airflow image (requirements-airflow.txt) is stuck on an
+            # older mlflow (its own cryptography pin conflicts with what
+            # mlflow >=3.14 requires - see ADR-039/ADR-041), which predates
+            # this param and predates skops entirely, so it doesn't need it.
+            log_model_kwargs["skops_trusted_types"] = ["sklearn.tree._tree.Tree"]
+        model_info = mlflow.sklearn.log_model(
+            model,
+            name="model",
+            registered_model_name=REGISTERED_MODEL_NAME,
+            signature=signature,
+            input_example=data[FEATURE_COLUMNS].head(3),
+            **log_model_kwargs,
         )
 
     new_version = str(model_info.registered_model_version)
