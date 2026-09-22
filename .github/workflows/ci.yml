@@ -193,7 +193,11 @@ jobs:
 
       - name: Show logs on failure
         if: failure()
-        run: docker compose -f docker-compose.airflow.yml logs
+        run: |
+          docker compose -f docker-compose.airflow.yml logs
+          echo "--- most recently modified task log files ---"
+          docker compose -f docker-compose.airflow.yml exec -T airflow bash -c \
+            'find /opt/airflow/logs -name "*.log" -newer /opt/airflow/airflow.cfg -print0 | xargs -0 ls -t | head -5 | while read -r f; do echo "=== $f ==="; tail -n 100 "$f"; done'
 
       - name: Tear down
         if: always()
