@@ -1,8 +1,12 @@
 services:
   minio:
-    # Docker Hub archived minio/minio (and minio/mc, below) on 2026-04-25 and no
-    # longer serves pulls for it - same tags are still published on quay.io.
-    image: quay.io/minio/minio:latest
+    # MinIO pulled its images from Docker Hub (2026-04) and then quay.io
+    # (2026-09/10) - see ADR-040/ADR-042. Chainguard still publishes the same
+    # MinIO build anonymously. Its image is distroless (no curl/shell) and runs
+    # as uid 65532, hence no healthcheck here (minio-init retries instead) and
+    # root for the freshly created named volume.
+    image: cgr.dev/chainguard/minio:latest
+    user: "0:0"
     ports:
       - "9000:9000" # S3 API
       - "9001:9001" # web console
@@ -12,23 +16,17 @@ services:
     command: ["server", "/data", "--console-address", ":9001"]
     volumes:
       - minio-data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
 
   # One-shot: creates the bucket mlflow will write artifacts to, then exits.
-  # `mlflow server` does not create its own S3 bucket - see ADR-019.
+  # `mlflow server` does not create its own S3 bucket - see ADR-019. Needs a
+  # shell for the retry loop, hence the -dev variant of the client image.
   minio-init:
-    image: quay.io/minio/mc:latest
+    image: cgr.dev/chainguard/minio-client:latest-dev
     depends_on:
-      minio:
-        condition: service_healthy
+      - minio
     entrypoint: >
       /bin/sh -c "
-      mc alias set local http://minio:9000 minioadmin minioadmin123 &&
+      until mc alias set local http://minio:9000 minioadmin minioadmin123; do sleep 1; done &&
       mc mb --ignore-existing local/mlflow-artifacts
       "
 

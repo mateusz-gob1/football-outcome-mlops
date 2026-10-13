@@ -1372,3 +1372,21 @@ now checks `inspect.signature(mlflow.sklearn.log_model).parameters` and
 only passes `skops_trusted_types` when the installed mlflow supports it -
 correct in both environments, since the param is meaningless (and absent)
 exactly where skops isn't the active serialization format.
+
+## ADR-042: MinIO images moved again, from quay.io to Chainguard
+
+ADR-040's quay.io fix lasted about three weeks: by 2026-10-13 anonymous pulls
+of `quay.io/minio/minio` returned `unauthorized`, so the CI `docker` job failed
+again at `docker compose up`. MinIO has stopped publishing public container
+images altogether (Docker Hub, then quay.io), so no registry swap for the
+upstream name is durable. `docker-compose.yml` now uses Chainguard's MinIO
+builds (`cgr.dev/chainguard/minio` and `minio-client:latest-dev`, both
+confirmed anonymously pullable). Two consequences of their distroless images:
+no `curl`, so the MinIO healthcheck is gone and `minio-init` instead retries
+`mc alias set` until the server answers (mlflow still waits on `minio-init`
+completing); and the image runs as uid 65532, so the service sets `user: "0:0"`
+to be able to write to the fresh named volume (dev-only compose, so fine).
+Not verified locally (no Docker on this machine) - the CI `docker` job is the
+test. If this breaks too, the next options are a community fork (pgsty/minio)
+or swapping the S3 store (RustFS, Garage) - which would be a real architecture
+change to ADR-019, not another image swap.
