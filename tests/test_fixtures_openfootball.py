@@ -103,3 +103,26 @@ def test_parse_fixtures_keeps_the_full_time_score_of_played_matches():
     played, unplayed = parse_fixtures(text, 2026)
     assert played["played"] and played["score"] == (2, 3)
     assert not unplayed["played"] and unplayed["score"] is None
+
+
+def test_fixture_already_in_our_results_counts_as_played(monkeypatch):
+    # openfootball can lag football-data by weeks: Matchday 1 still has no
+    # score there, but we already have the result, so Matchday 2 is "next".
+    text = (
+        "▪ Matchday 1\n"
+        "  Sat Aug 15 2026\n"
+        "    15:00  Arsenal FC              v Chelsea FC\n"
+        "▪ Matchday 2\n"
+        "  Sat Aug 22 2026\n"
+        "    15:00  Chelsea FC              v Arsenal FC\n"
+    )
+    monkeypatch.setattr(
+        "src.data.fixtures_openfootball.fetch_season_text", lambda year: text
+    )
+    from src.data.fixtures_openfootball import next_gameweek_fixtures
+
+    known = {"Arsenal", "Chelsea"}
+    played = {(dt.date(2026, 8, 15), "Arsenal", "Chelsea")}
+
+    assert next_gameweek_fixtures(known, 2026)[0]["Matchday"] == 1
+    assert next_gameweek_fixtures(known, 2026, played=played)[0]["Matchday"] == 2

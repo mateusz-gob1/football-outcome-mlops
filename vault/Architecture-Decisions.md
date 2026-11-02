@@ -1390,3 +1390,20 @@ Not verified locally (no Docker on this machine) - the CI `docker` job is the
 test. If this breaks too, the next options are a community fork (pgsty/minio)
 or swapping the S3 store (RustFS, Garage) - which would be a real architecture
 change to ADR-019, not another image swap.
+
+## ADR-043: "Next matchday" skips fixtures we already have results for
+
+The live site's "Next Matchday" was stuck on 10-12 Oct (Matchday 6) for three
+weeks even though Daily Update and the Pages deploy ran green every day.
+`select_next_gameweek` takes the earliest openfootball matchday with a
+fixture that has no score, and openfootball/england had not recorded
+Matchday 6 results at all, while football-data.co.uk (our results source)
+already had matches through 1 Nov. `next_gameweek_fixtures` now takes the
+set of (date, home, away) already in `matches_validated.csv` and treats a
+fixture we hold a result for as played, regardless of openfootball's score
+column. Same lag problem as ADR-036, opposite direction: there openfootball
+was ahead of football-data and supplemented the table; here it is behind
+and must not decide what "upcoming" means. A green workflow is not proof the
+data moved - the failure was silent, so the freshness-check idea from
+ADR-035 (fail the run when the newest match date lags the calendar) is still
+open.

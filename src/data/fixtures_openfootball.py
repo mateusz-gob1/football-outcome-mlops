@@ -148,7 +148,9 @@ def select_next_gameweek(fixtures: list[dict]) -> list[dict]:
 
 
 def next_gameweek_fixtures(
-    known_teams: set, start_year: int | None = None
+    known_teams: set,
+    start_year: int | None = None,
+    played: set[tuple[dt.date, str, str]] | None = None,
 ) -> list[dict]:
     """Return the next unplayed Premier League gameweek's fixtures.
 
@@ -156,6 +158,11 @@ def next_gameweek_fixtures(
     src/data/team_names.py) so the rest of the pipeline can look up each
     team's history without a separate mapping step downstream. Each record:
     {"Date": datetime.date, "HomeTeam": str, "AwayTeam": str}.
+
+    `played` is a set of (date, home, away) already in our own results
+    history. openfootball's scores can lag football-data by weeks, so a
+    fixture it still shows without a score counts as played if we have it -
+    otherwise the "next gameweek" would stay stuck on an old matchday.
     """
     if start_year is None:
         today = dt.datetime.now(tz=dt.timezone.utc).date()
@@ -163,6 +170,20 @@ def next_gameweek_fixtures(
 
     text = fetch_season_text(start_year)
     fixtures = parse_fixtures(text, start_year)
+    if played:
+        for f in fixtures:
+            if f["played"]:
+                continue
+            try:
+                key = (
+                    f["date"],
+                    normalize_openfootball_team_name(f["home"], known_teams),
+                    normalize_openfootball_team_name(f["away"], known_teams),
+                )
+            except ValueError:
+                continue
+            if key in played:
+                f["played"] = True
     gameweek = select_next_gameweek(fixtures)
 
     if not gameweek:

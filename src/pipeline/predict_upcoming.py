@@ -57,7 +57,13 @@ def predict_upcoming_gameweek(
     historical = pd.read_csv(PROCESSED_DATA_PATH, parse_dates=["Date"])
     known_teams = set(historical["HomeTeam"]) | set(historical["AwayTeam"])
 
-    fixtures = fixtures_fetcher(known_teams)
+    played = {
+        (d.date(), h, a)
+        for d, h, a in zip(
+            historical["Date"], historical["HomeTeam"], historical["AwayTeam"]
+        )
+    }
+    fixtures = fixtures_fetcher(known_teams, played=played)
     if not fixtures:
         logger.warning("No upcoming gameweek fixtures found - nothing to predict")
         return pd.DataFrame()
