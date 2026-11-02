@@ -1407,3 +1407,18 @@ and must not decide what "upcoming" means. A green workflow is not proof the
 data moved - the failure was silent, so the freshness-check idea from
 ADR-035 (fail the run when the newest match date lags the calendar) is still
 open.
+
+## ADR-044: Freshness check in Daily Update (schedule vs our results)
+
+Closes the gap named in ADR-035 and ADR-043: the pipeline can be green for
+weeks while no new matches arrive. `src/data/freshness.py` takes the
+openfootball season schedule (reliable about *when* matches are due, even when
+its scores lag) and lists fixtures dated 3+ days ago that have no result in
+`matches_validated.csv`; 3 or more such fixtures exit non-zero. It checks
+against the schedule instead of "newest match older than N days" so
+international breaks and the summer gap cannot trip it, and requires several
+misses so one postponed match does not. It runs as its own `freshness` job
+after `deploy` (installs only pandas + requests), so a stale-data alarm turns
+the run red without blocking the site update. If the fixture list itself
+cannot be fetched the check warns and passes - that is a different failure.
+Verified by pretending the data stopped on 9 Oct: 30 overdue fixtures.

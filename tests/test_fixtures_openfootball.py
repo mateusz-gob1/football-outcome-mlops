@@ -126,3 +126,22 @@ def test_fixture_already_in_our_results_counts_as_played(monkeypatch):
 
     assert next_gameweek_fixtures(known, 2026)[0]["Matchday"] == 1
     assert next_gameweek_fixtures(known, 2026, played=played)[0]["Matchday"] == 2
+
+
+def test_freshness_flags_only_overdue_fixtures_missing_from_our_results():
+    from src.data.freshness import overdue_fixtures
+
+    def fx(day, home, away):
+        return {"date": dt.date(2026, 10, day), "home": home, "away": away}
+
+    fixtures = [
+        fx(10, "Arsenal FC", "Chelsea FC"),  # old, we have it
+        fx(11, "Liverpool FC", "Everton FC"),  # old, missing -> overdue
+        fx(30, "Chelsea FC", "Everton FC"),  # inside grace window -> ignored
+    ]
+    known = {"Arsenal", "Chelsea", "Liverpool", "Everton"}
+    played = {(dt.date(2026, 10, 10), "Arsenal", "Chelsea")}
+
+    overdue = overdue_fixtures(fixtures, played, known, today=dt.date(2026, 11, 1))
+
+    assert [f["home"] for f in overdue] == ["Liverpool FC"]

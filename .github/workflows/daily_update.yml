@@ -127,3 +127,26 @@ jobs:
     uses: ./.github/workflows/deploy-pages.yml
     with:
       ref: main
+
+  # Separate job, after the deploy, so a stale-data alarm turns the run red
+  # without ever blocking the site from updating. The steps above can all be
+  # green while no new matches arrive (ingest is continue-on-error, and
+  # ADR-043's stuck matchday was exactly that) - this is the check that notices.
+  freshness:
+    needs: [update, deploy]
+    if: always() && needs.update.result != 'cancelled'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - run: pip install pandas requests
+
+      - name: Fail if fixtures are overdue with no result in our data
+        run: python -m src.data.freshness
+
