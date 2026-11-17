@@ -147,6 +147,20 @@ def select_next_gameweek(fixtures: list[dict]) -> list[dict]:
     return [f for f in fixtures if f["matchday"] == target and not f["played"]]
 
 
+def season_pairs(
+    played: set[tuple[dt.date, str, str]], start_year: int
+) -> set[tuple[str, str]]:
+    """(home, away) pairs already played in the season starting in `start_year`.
+
+    Matched on the pair, not the date: each ordered pair meets exactly once a
+    league season, and rescheduled matches (moved for TV, cup runs) keep the
+    date openfootball published originally while football-data records the
+    real one.
+    """
+    season_start = dt.date(start_year, 8, 1)
+    return {(home, away) for day, home, away in played if day >= season_start}
+
+
 def next_gameweek_fixtures(
     known_teams: set,
     start_year: int | None = None,
@@ -160,7 +174,7 @@ def next_gameweek_fixtures(
     {"Date": datetime.date, "HomeTeam": str, "AwayTeam": str}.
 
     `played` is a set of (date, home, away) already in our own results
-    history. openfootball's scores can lag football-data by weeks, so a
+    history (matched per season on the home/away pair, see season_pairs). openfootball's scores can lag football-data by weeks, so a
     fixture it still shows without a score counts as played if we have it -
     otherwise the "next gameweek" would stay stuck on an old matchday.
     """
@@ -171,18 +185,18 @@ def next_gameweek_fixtures(
     text = fetch_season_text(start_year)
     fixtures = parse_fixtures(text, start_year)
     if played:
+        played_pairs = season_pairs(played, start_year)
         for f in fixtures:
             if f["played"]:
                 continue
             try:
-                key = (
-                    f["date"],
+                pair = (
                     normalize_openfootball_team_name(f["home"], known_teams),
                     normalize_openfootball_team_name(f["away"], known_teams),
                 )
             except ValueError:
                 continue
-            if key in played:
+            if pair in played_pairs:
                 f["played"] = True
     gameweek = select_next_gameweek(fixtures)
 

@@ -142,6 +142,30 @@ def test_freshness_flags_only_overdue_fixtures_missing_from_our_results():
     known = {"Arsenal", "Chelsea", "Liverpool", "Everton"}
     played = {(dt.date(2026, 10, 10), "Arsenal", "Chelsea")}
 
-    overdue = overdue_fixtures(fixtures, played, known, today=dt.date(2026, 11, 1))
+    overdue = overdue_fixtures(
+        fixtures, played, known, today=dt.date(2026, 11, 1), start_year=2026
+    )
 
     assert [f["home"] for f in overdue] == ["Liverpool FC"]
+
+
+def test_rescheduled_match_still_counts_as_played(monkeypatch):
+    # openfootball keeps the originally published date; we recorded the real,
+    # later one - the pair, not the date, identifies the match in a season.
+    text = (
+        "▪ Matchday 1\n"
+        "  Sat Aug 15 2026\n"
+        "    15:00  Arsenal FC              v Chelsea FC\n"
+        "▪ Matchday 2\n"
+        "  Sat Aug 22 2026\n"
+        "    15:00  Chelsea FC              v Arsenal FC\n"
+    )
+    monkeypatch.setattr(
+        "src.data.fixtures_openfootball.fetch_season_text", lambda year: text
+    )
+    from src.data.fixtures_openfootball import next_gameweek_fixtures
+
+    played = {(dt.date(2026, 8, 16), "Arsenal", "Chelsea")}  # played a day later
+    nxt = next_gameweek_fixtures({"Arsenal", "Chelsea"}, 2026, played=played)
+
+    assert nxt[0]["Matchday"] == 2

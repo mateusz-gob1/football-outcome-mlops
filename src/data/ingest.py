@@ -114,7 +114,17 @@ def _get_with_retry(url: str, retries: int = 3) -> bytes:
     exponential backoff when it doesn't.
     """
     for attempt in range(retries):
-        response = requests.get(url, timeout=60)
+        try:
+            response = requests.get(url, timeout=60)
+        except (requests.Timeout, requests.ConnectionError) as exc:
+            # football-data.co.uk sometimes hangs on a request from cloud IPs;
+            # a plain retry usually gets through, and giving up here sends the
+            # whole ingest to a mirror that may be weeks stale (ADR-045).
+            if attempt == retries - 1:
+                raise
+            logger.info("%s for %s, retrying", type(exc).__name__, url)
+            time.sleep(2 * (attempt + 1))
+            continue
         if response.status_code in TRANSIENT_STATUS_CODES and attempt < retries - 1:
             retry_after = response.headers.get("Retry-After")
             wait = (
@@ -157,7 +167,7 @@ def fetch_combined_matches(retries: int = 3, use_cache: bool = True) -> pd.DataF
     return df
 
 
-DIRECT_BASE_URL = "https://www.football-data.co.uk/mmz4281"
+DIRECT_BASE_URL = "https://football-data.co.uk/mmz4281"
 
 
 def download_season_csv(start_year: int, retries: int = 3) -> bytes:
@@ -171,7 +181,7 @@ def download_season_csv(start_year: int, retries: int = 3) -> bytes:
     """
     url = f"{DIRECT_BASE_URL}/{season_code(start_year)}/{LEAGUE_CODE}.csv"
     try:
-        return _get_with_retry(url, retries=2)
+        return _get_with_retry(url, retries=3)
     except requests.RequestException as exc:
         logger.warning("Direct download failed for %s (%s) - using mirror", url, exc)
     return _download_season_from_mirror(start_year, retries)

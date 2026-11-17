@@ -18,7 +18,11 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from src.data.fixtures_openfootball import fetch_season_text, parse_fixtures
+from src.data.fixtures_openfootball import (
+    fetch_season_text,
+    parse_fixtures,
+    season_pairs,
+)
 from src.data.team_names import normalize_openfootball_team_name
 
 logger = logging.getLogger(__name__)
@@ -38,23 +42,29 @@ def overdue_fixtures(
     played: set[tuple[dt.date, str, str]],
     known_teams: set,
     today: dt.date,
+    start_year: int,
     grace_days: int = GRACE_DAYS,
 ) -> list[dict]:
-    """Fixtures dated at least `grace_days` ago that our results don't contain."""
+    """Fixtures dated at least `grace_days` ago that our results don't contain.
+
+    Matched on the home/away pair within the season rather than the date, so a
+    match that was rescheduled after openfootball published its calendar is
+    not reported as missing.
+    """
     cutoff = today - dt.timedelta(days=grace_days)
+    played_pairs = season_pairs(played, start_year)
     overdue = []
     for f in fixtures:
         if f["date"] > cutoff:
             continue
         try:
-            key = (
-                f["date"],
+            pair = (
                 normalize_openfootball_team_name(f["home"], known_teams),
                 normalize_openfootball_team_name(f["away"], known_teams),
             )
         except ValueError:
             continue
-        if key not in played:
+        if pair not in played_pairs:
             overdue.append(f)
     return overdue
 
@@ -77,7 +87,7 @@ def main() -> int:
         logger.warning("Could not load the fixture list, skipping check: %s", exc)
         return 0
 
-    overdue = overdue_fixtures(fixtures, played, known_teams, today)
+    overdue = overdue_fixtures(fixtures, played, known_teams, today, start_year)
     newest = history["Date"].max().date()
     if len(overdue) >= MIN_OVERDUE_TO_FAIL:
         logger.error(

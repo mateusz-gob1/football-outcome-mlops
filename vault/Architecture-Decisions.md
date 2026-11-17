@@ -1422,3 +1422,25 @@ after `deploy` (installs only pandas + requests), so a stale-data alarm turns
 the run red without blocking the site update. If the fixture list itself
 cannot be fetched the check warns and passes - that is a different failure.
 Verified by pretending the data stopped on 9 Oct: 30 overdue fixtures.
+
+## ADR-045: A stale ingest must never replace newer data
+
+ADR-044's freshness check went red on 10 Nov and stayed red: `matches_validated.csv`
+in `main` had dropped from 6180 matches (to 8 Nov) to 6100 (to 31 Aug). In CI,
+football-data.co.uk timed out for the current-season file, `download_season_csv`
+fell back to the GitHub mirror (stale since 31 Aug, 2 KB for this season), and
+`save_validated` overwrote the good file with it - the bot then committed the
+regression. Three fixes. (1) `save_validated` now unions the fresh ingest with
+the file already on disk (`merge_with_existing`, fresh row wins on duplicates):
+matches never vanish from real history, so keeping old rows only adds
+information. (2) `_get_with_retry` retried only on 429/5xx; a timeout went
+straight to the mirror. It now retries timeouts and connection errors too, and
+the direct URL uses the apex host (the `www.` host just 302-redirects there).
+(3) Matching "already played" by exact date (ADR-043's first version, and the
+freshness check) misfired on rescheduled matches: six fixtures openfootball
+lists on 7 Nov were played on 8 Nov, so they stayed "upcoming" and "overdue".
+A home/away pair meets once per league season, so both now match on the pair
+within the season (`season_pairs`). The freshness alarm did exactly its job
+here - it is what surfaced all of this. Not yet known: whether the CI runner's
+direct fetch recovers; if not, the check will go red again as soon as a new
+matchday is missing, which is the intended signal.

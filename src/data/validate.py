@@ -161,10 +161,38 @@ def validate_all(raw_dir: Path = RAW_DATA_DIR) -> pd.DataFrame:
     return combined
 
 
+def merge_with_existing(new: pd.DataFrame, existing: pd.DataFrame) -> pd.DataFrame:
+    """Union of previously saved matches and a fresh ingest; the fresh row wins.
+
+    A fresh ingest can be *behind* what we already hold - the cloud runner
+    could not reach football-data.co.uk and fell back to a mirror that stopped
+    at 31 Aug, which replaced a file running to 8 Nov (ADR-045). Matches never
+    disappear from the real history, so keeping every old row can only ever
+    add information.
+    """
+    key = ["Date", "HomeTeam", "AwayTeam"]
+    merged = pd.concat([existing[new.columns], new], ignore_index=True)
+    merged = merged.drop_duplicates(subset=key, keep="last")
+    return merged.sort_values("Date", kind="stable").reset_index(drop=True)
+
+
 def save_validated(out_dir: Path = PROCESSED_DATA_DIR) -> Path:
     combined = validate_all()
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "matches_validated.csv"
+    if path.exists():
+        existing = pd.read_csv(path, parse_dates=["Date"])
+        merged = merge_with_existing(combined, existing)
+        if len(merged) > len(combined):
+            logger.warning(
+                "Fresh ingest has %d matches (newest %s) but we already held %d "
+                "(newest %s) - keeping the older rows too",
+                len(combined),
+                combined["Date"].max().date(),
+                len(existing),
+                existing["Date"].max().date(),
+            )
+        combined = merged
     combined.to_csv(path, index=False)
     logger.info("Saved %s (%d matches)", path, len(combined))
     return path

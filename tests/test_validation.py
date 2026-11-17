@@ -88,3 +88,28 @@ def test_walk_forward_validate_without_param_grid_skips_tuning():
     assert result.iloc[0]["params"] == {}
     fit_seasons_seen = set().union(*(seasons for kind, seasons in log if kind == "fit"))
     assert 2013 not in fit_seasons_seen
+
+
+def test_merge_with_existing_never_drops_newer_rows_from_a_stale_ingest():
+    import pandas as pd
+
+    from src.data.validate import merge_with_existing
+
+    cols = ["Date", "HomeTeam", "AwayTeam", "FTHG"]
+    existing = pd.DataFrame(
+        [
+            ["2026-08-30", "Leeds", "Brentford", 1],
+            ["2026-11-08", "Sunderland", "Chelsea", 1],
+        ],
+        columns=cols,
+    )
+    stale = pd.DataFrame([["2026-08-30", "Leeds", "Brentford", 2]], columns=cols)
+    for df in (existing, stale):
+        df["Date"] = pd.to_datetime(df["Date"])
+
+    merged = merge_with_existing(stale, existing)
+
+    assert len(merged) == 2
+    assert merged["Date"].max() == pd.Timestamp("2026-11-08")
+    # the fresh row wins on a duplicate match
+    assert merged.loc[merged["HomeTeam"] == "Leeds", "FTHG"].item() == 2
